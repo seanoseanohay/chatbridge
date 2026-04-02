@@ -1,5 +1,5 @@
 import { PluginRegistryEntrySchema, type AppManifest, type PluginRegistryEntry } from './types'
-import { getPluginAuthToken } from './auth'
+import { getPluginAuthToken, initializePluginAuth } from './auth'
 
 const DEFAULT_PLUGIN_BACKEND_URL = 'http://localhost:4302'
 
@@ -73,6 +73,7 @@ export function getRegistryCache(): PluginRegistryEntry[] {
 }
 
 export async function fetchRegistry(fetchImpl: typeof fetch = fetch): Promise<RegistryLoadResult> {
+  await initializePluginAuth()
   try {
     const response = await fetchImpl(`${getPluginBackendUrl()}/api/apps`, {
       headers: {

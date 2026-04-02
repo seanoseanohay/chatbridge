@@ -6,6 +6,7 @@ import {
   IconCategory,
   IconChevronLeft,
   IconChevronRight,
+  IconPlugConnected,
   IconCircleDottedLetterM,
   IconFileText,
   IconInfoCircle,
@@ -65,6 +66,11 @@ const ITEMS = [
         },
       ]
     : []),
+  {
+    key: 'chatbridge',
+    label: 'ChatBridge',
+    icon: <IconPlugConnected className="w-full h-full" />,
+  },
   {
     key: 'document-parser',
     label: 'Document Parser',
