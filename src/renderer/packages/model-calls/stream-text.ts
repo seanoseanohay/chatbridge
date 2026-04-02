@@ -35,8 +35,33 @@ import {
 } from './tools'
 import fileToolSet from './toolsets/file'
 import { getToolSet } from './toolsets/knowledge-base'
-import { getPluginTools, injectActiveAppSummary } from '../../../plugin-runtime/runtime'
+import { getPluginTools, injectActiveAppSummary, invokePluginTool } from '../../../plugin-runtime/runtime'
 import websearchToolSet, { parseLinkTool, webSearchTool } from './toolsets/web-search'
+
+function getLatestUserText(messages: Message[]) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role !== 'user') {
+      continue
+    }
+    return messages[i].contentParts
+      .filter((part): part is Extract<typeof part, { type: 'text' }> => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n')
+      .trim()
+  }
+  return ''
+}
+
+function shouldLaunchChessApp(text: string) {
+  const normalized = text.toLowerCase()
+  return (
+    normalized.includes("let's play chess") ||
+    normalized.includes('lets play chess') ||
+    normalized.includes('play chess') ||
+    normalized.includes('start chess') ||
+    normalized.includes('open chess')
+  )
+}
 
 /**
  * 处理搜索结果并返回模型响应的通用函数
@@ -318,6 +343,38 @@ export async function streamText(
         ...tools,
         ...fileToolSet.tools,
       }
+    }
+
+    const latestUserText = getLatestUserText(messages)
+    if (sessionId && tools.chess_start && shouldLaunchChessApp(latestUserText)) {
+      const toolCallId = `chess_start_${uniqueId()}`
+      const toolResult = await invokePluginTool('chess_start', {}, {
+        conversationId: sessionId,
+        appId: 'chess-v1',
+        toolCallId,
+      })
+
+      const toolCallPart: MessageToolCallPart = {
+        type: 'tool-call',
+        state: 'result',
+        toolCallId,
+        toolName: 'chess_start',
+        args: {},
+        result: toolResult,
+      }
+
+      result = {
+        contentParts: [
+          ...infoParts,
+          toolCallPart,
+          {
+            type: 'text',
+            text: 'Chess is ready in the app panel. Make your move on the board or type standard notation.',
+          },
+        ],
+      }
+      onResultChange(result)
+      return { result, coreMessages }
     }
 
     console.debug('tools', tools)
