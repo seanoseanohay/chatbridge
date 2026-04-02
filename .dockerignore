@@ -1,0 +1,10 @@
+.git
+.github
+node_modules
+server/node_modules
+release/app/node_modules
+dist
+out
+coverage
+.turbo
+.DS_Store
