@@ -149,7 +149,7 @@ Canonical Postgres schema. Defined in `docs/architecture.md`. This file is the s
 
 ### Renderer / Electron
 ```
-PLUGIN_BACKEND_URL=http://localhost:3001   # Backend API base URL
+PLUGIN_BACKEND_URL=http://localhost:4302   # Backend API base URL
 ```
 
 ### Backend (server/.env)
@@ -159,6 +159,6 @@ REDIS_URL=redis://...
 JWT_SECRET=...                             # min 32 chars, random
 SPOTIFY_CLIENT_ID=...
 SPOTIFY_CLIENT_SECRET=...
-SPOTIFY_REDIRECT_URI=http://localhost:3001/api/oauth/spotify/callback
+SPOTIFY_REDIRECT_URI=http://localhost:4302/api/oauth/spotify/callback
 OPENWEATHER_API_KEY=...
 ```
