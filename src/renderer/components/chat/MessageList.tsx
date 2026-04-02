@@ -30,6 +30,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { type StateSnapshot, Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import AppFrame from '../../../plugin-runtime/AppFrame'
+import { dismissAppSession } from '../../../plugin-runtime/runtime'
 import { platformTypeAtom } from '@/hooks/useNeedRoomForWinControls'
 import { useIsSmallScreen } from '@/hooks/useScreenChange'
 import { cn } from '@/lib/utils'
@@ -121,6 +122,12 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
     }
     return pluginFrames[activeAppSession.messageId]
   }, [activeAppSession, currentSession.id, pluginFrames])
+  const handleCloseDockedApp = useCallback(() => {
+    if (!activeDockedFrame) {
+      return
+    }
+    dismissAppSession(activeDockedFrame.sessionId)
+  }, [activeDockedFrame])
   const currentMessageList = useMemo(() => getAllMessageList(currentSession), [currentSession])
 
   const latestSummaryMessageId = useMemo(() => {
@@ -536,15 +543,16 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
                 </Text>
               </div>
               <div className="min-h-0 flex-1 overflow-hidden">
-                <AppFrame
-                  appId={activeDockedFrame.appId}
-                  sessionId={activeDockedFrame.sessionId}
-                  src={activeDockedFrame.src}
-                  srcDoc={activeDockedFrame.srcDoc}
-                  origin={activeDockedFrame.origin}
-                  initConfig={activeDockedFrame.initConfig}
-                  completed={activeDockedFrame.status === 'completed'}
-                />
+                  <AppFrame
+                    appId={activeDockedFrame.appId}
+                    sessionId={activeDockedFrame.sessionId}
+                    src={activeDockedFrame.src}
+                    srcDoc={activeDockedFrame.srcDoc}
+                    origin={activeDockedFrame.origin}
+                    initConfig={activeDockedFrame.initConfig}
+                    completed={activeDockedFrame.status === 'completed'}
+                    onClose={handleCloseDockedApp}
+                  />
               </div>
             </aside>
           )}

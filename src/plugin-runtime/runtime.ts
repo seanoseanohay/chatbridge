@@ -56,6 +56,17 @@ function setFrameEntry(toolCallId: string, entry: PluginFrameEntry) {
   })
 }
 
+function removeFrameEntry(toolCallId: string) {
+  const store = getDefaultStore()
+  const current = store.get(pluginFramesAtom)
+  if (!(toolCallId in current)) {
+    return
+  }
+  const next = { ...current }
+  delete next[toolCallId]
+  store.set(pluginFramesAtom, next)
+}
+
 function updateFrameEntry(toolCallId: string, updater: (entry: PluginFrameEntry) => PluginFrameEntry) {
   const store = getDefaultStore()
   const current = store.get(pluginFramesAtom)
@@ -414,6 +425,31 @@ export function markAppFrameStatus(sessionId: string, status: PluginFrameEntry['
     status,
     error,
   }))
+}
+
+export function dismissAppSession(sessionId: string) {
+  const runtimeSession = runtimeSessions.get(sessionId)
+  if (!runtimeSession) {
+    const activeSession = getDefaultStore().get(activeAppSessionAtom)
+    if (activeSession?.sessionId === sessionId) {
+      setActiveSession(null)
+    }
+    return
+  }
+
+  for (const pending of runtimeSession.pendingBySeq.values()) {
+    pending.reject(new Error('App session closed'))
+  }
+  runtimeSession.pendingBySeq.clear()
+  runtimeSession.unregister?.()
+  runtimeSessions.delete(sessionId)
+  iframeElements.delete(sessionId)
+  removeFrameEntry(runtimeSession.frameToolCallId)
+
+  const activeSession = getDefaultStore().get(activeAppSessionAtom)
+  if (activeSession?.sessionId === sessionId) {
+    setActiveSession(null)
+  }
 }
 
 export async function invokePluginTool(

@@ -1,5 +1,5 @@
-import { Alert, Button, Loader, Stack, Text } from '@mantine/core'
-import { IconAlertCircle, IconCheck, IconRefresh } from '@tabler/icons-react'
+import { ActionIcon, Alert, Button, Loader, Stack, Text } from '@mantine/core'
+import { IconAlertCircle, IconCheck, IconRefresh, IconX } from '@tabler/icons-react'
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { registerAppListener, sendToApp } from './eventBus'
 import { markAppFrameStatus, registerAppFrame } from './runtime'
@@ -16,6 +16,7 @@ export interface AppFrameProps {
   completed?: boolean
   onReady?: () => void
   onError?: (error: string) => void
+  onClose?: () => void
 }
 
 const FRAME_TIMEOUT_MS = 10_000
@@ -38,7 +39,7 @@ function getOrigin(value: string): string | null {
 }
 
 export default function AppFrame(props: AppFrameProps) {
-  const { appId, sessionId, src, origin, srcDoc, initConfig, completed, onError, onReady } = props
+  const { appId, sessionId, src, origin, srcDoc, initConfig, completed, onError, onReady, onClose } = props
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const timeoutRef = useRef<number | null>(null)
   const initRetryRef = useRef<number | null>(null)
@@ -202,14 +203,19 @@ export default function AppFrame(props: AppFrameProps) {
         <Text fw={600} size="sm">
           {appId}
         </Text>
-        {status === 'completed' && (
-          <Text size="xs" c="green">
-            <span className="inline-flex items-center gap-1">
-              <IconCheck size={14} />
-              Completed
-            </span>
-          </Text>
-        )}
+        <div className="flex items-center gap-2">
+          {status === 'completed' && (
+            <Text size="xs" c="green">
+              <span className="inline-flex items-center gap-1">
+                <IconCheck size={14} />
+                Completed
+              </span>
+            </Text>
+          )}
+          <ActionIcon aria-label="Close app" size="sm" variant="subtle" onClick={onClose}>
+            <IconX size={16} />
+          </ActionIcon>
+        </div>
       </div>
 
       {status === 'error' && (
