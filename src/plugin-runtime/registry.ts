@@ -1,7 +1,39 @@
 import { PluginRegistryEntrySchema, type AppManifest, type PluginRegistryEntry } from './types'
 import { getPluginAuthToken } from './auth'
 
-const DEFAULT_PLUGIN_BACKEND_URL = 'http://localhost:3001'
+const DEFAULT_PLUGIN_BACKEND_URL = 'http://localhost:4302'
+
+const BUILTIN_CHESS_ENTRY: PluginRegistryEntry = PluginRegistryEntrySchema.parse({
+  appId: 'chess-v1',
+  origin: 'https://apps.chatbridge.app/chess',
+  enabled: true,
+  manifest: {
+    id: 'chess-v1',
+    name: 'Chess',
+    version: '1.0.0',
+    origin: 'https://apps.chatbridge.app/chess',
+    requiresAuth: false,
+    tools: [
+      {
+        name: 'chess_start',
+        description: 'Start a new chess game inside the ChatBridge app frame.',
+        parameters: { type: 'object', properties: {}, additionalProperties: false },
+        returns: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'], additionalProperties: false },
+      },
+      {
+        name: 'chess_move',
+        description: 'Make a chess move in algebraic notation.',
+        parameters: {
+          type: 'object',
+          properties: { move: { type: 'string' } },
+          required: ['move'],
+          additionalProperties: false,
+        },
+        returns: { type: 'object', properties: { accepted: { type: 'boolean' } }, required: ['accepted'], additionalProperties: false },
+      },
+    ],
+  },
+})
 
 type RegistryLoadStatus = 'ready' | 'unauthorized' | 'unavailable'
 
@@ -15,11 +47,20 @@ let registryCache: PluginRegistryEntry[] = []
 let registryByAppId = new Map<string, PluginRegistryEntry>()
 let toolToAppId = new Map<string, string>()
 
+function mergeBuiltinApps(apps: PluginRegistryEntry[]) {
+  const merged = new Map<string, PluginRegistryEntry>([[BUILTIN_CHESS_ENTRY.appId, BUILTIN_CHESS_ENTRY]])
+  for (const entry of apps) {
+    merged.set(entry.appId, entry)
+  }
+  return Array.from(merged.values())
+}
+
 function rebuildIndexes(apps: PluginRegistryEntry[]) {
-  registryCache = apps
-  registryByAppId = new Map(apps.map((entry) => [entry.appId, entry]))
+  const mergedApps = mergeBuiltinApps(apps)
+  registryCache = mergedApps
+  registryByAppId = new Map(mergedApps.map((entry) => [entry.appId, entry]))
   toolToAppId = new Map(
-    apps.flatMap((entry) => entry.manifest.tools.map((tool) => [tool.name, entry.appId] as const))
+    mergedApps.flatMap((entry) => entry.manifest.tools.map((tool) => [tool.name, entry.appId] as const))
   )
 }
 
@@ -88,5 +129,7 @@ export function getAppManifest(appId: string): AppManifest | null {
 }
 
 export function __resetRegistryForTests() {
-  rebuildIndexes([])
+  registryCache = []
+  registryByAppId = new Map()
+  toolToAppId = new Map()
 }

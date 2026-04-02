@@ -47,7 +47,7 @@ describe('plugin registry', () => {
     expect(getAppManifest('chess-v1')?.name).toBe('Chess')
   })
 
-  it('falls back to an empty registry on unauthorized responses', async () => {
+  it('keeps the built-in chess app available on unauthorized responses', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue({
       ok: false,
       status: 401,
@@ -57,7 +57,7 @@ describe('plugin registry', () => {
     const result = await fetchRegistry(fetchMock)
 
     expect(result.status).toBe('unauthorized')
-    expect(result.apps).toEqual([])
-    expect(resolveToolToApp('chess_start')).toBeNull()
+    expect(resolveToolToApp('chess_start')?.appId).toBe('chess-v1')
+    expect(getAppManifest('chess-v1')?.name).toBe('Chess')
   })
 })
