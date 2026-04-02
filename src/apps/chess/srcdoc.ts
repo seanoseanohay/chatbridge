@@ -210,6 +210,31 @@ export function createChessAppSrcDoc() {
         display: grid;
         gap: 8px;
       }
+      .actions {
+        display: flex;
+        justify-content: flex-end;
+      }
+      .restart-button {
+        appearance: none;
+        border: 0;
+        border-radius: 999px;
+        padding: 10px 14px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        color: #fff8ec;
+        background: linear-gradient(180deg, #7f552a 0%, #5f3c19 100%);
+        box-shadow:
+          0 10px 18px rgba(93, 61, 26, 0.18),
+          inset 0 1px 0 rgba(255,255,255,0.18);
+        cursor: pointer;
+      }
+      .restart-button[hidden] {
+        display: none;
+      }
+      .restart-button:hover {
+        filter: brightness(1.04);
+      }
       .hint, .error {
         border-radius: 12px;
         padding: 10px 12px;
@@ -253,6 +278,9 @@ export function createChessAppSrcDoc() {
       </div>
       <div class="panel">
         <div class="hint" id="hint">Click a piece to see legal targets, or type a move like <code>e4</code>, <code>Nf3</code>, or <code>e2e4</code>.</div>
+        <div class="actions">
+          <button type="button" class="restart-button" id="restartButton" hidden>Start new game</button>
+        </div>
         <div class="meta" id="meta"></div>
         <div class="error" id="error"></div>
       </div>
@@ -286,6 +314,7 @@ export function createChessAppSrcDoc() {
       const errorEl = document.getElementById('error');
       const metaEl = document.getElementById('meta');
       const hintEl = document.getElementById('hint');
+      const restartButtonEl = document.getElementById('restartButton');
       const turnBadgeEl = document.getElementById('turnBadge');
       const turnTextEl = document.getElementById('turnText');
 
@@ -324,6 +353,10 @@ export function createChessAppSrcDoc() {
       function clearError() {
         errorEl.textContent = '';
         errorEl.classList.remove('visible');
+      }
+
+      function setRestartVisible(visible) {
+        restartButtonEl.hidden = !visible;
       }
 
       function scoreComputerMove(move) {
@@ -383,14 +416,18 @@ export function createChessAppSrcDoc() {
         if (game.isCheckmate()) {
           statusEl.textContent = 'Checkmate · ' + (currentTurnColor() === 'white' ? 'Black' : 'White') + ' wins';
           turnBadgeEl.innerHTML = '<span class="turn-dot black"></span><span>Game Over</span>';
+          setRestartVisible(true);
           return;
         }
 
         if (game.isDraw()) {
           statusEl.textContent = 'Draw';
           turnBadgeEl.innerHTML = '<span class="turn-dot"></span><span>Draw</span>';
+          setRestartVisible(true);
           return;
         }
+
+        setRestartVisible(false);
 
         turnBadgeEl.innerHTML =
           '<span class="turn-dot ' +
@@ -564,6 +601,7 @@ export function createChessAppSrcDoc() {
       function handleSquareSelection(squareName) {
         if (game.isGameOver()) {
           showError('The game is over. Start a new game to keep playing.');
+          setHint('Game over. Use <code>Start new game</code> to reset the board and play again.');
           return;
         }
 
@@ -631,6 +669,13 @@ export function createChessAppSrcDoc() {
         if (!square) return;
         event.preventDefault();
         handleSquareSelection(square.dataset.square);
+      });
+
+      restartButtonEl.addEventListener('click', () => {
+        resetGame();
+        if (activeSessionId) {
+          postStateUpdate(manualSeq++);
+        }
       });
 
       window.addEventListener('message', (rawEvent) => {
