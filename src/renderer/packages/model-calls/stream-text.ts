@@ -52,7 +52,7 @@ function getLatestUserText(messages: Message[]) {
   return ''
 }
 
-function shouldLaunchChessApp(text: string) {
+export function shouldLaunchChessApp(text: string) {
   const normalized = text.toLowerCase()
   return (
     normalized.includes("let's play chess") ||
@@ -63,17 +63,17 @@ function shouldLaunchChessApp(text: string) {
   )
 }
 
-function extractWeatherLocation(text: string) {
+export function extractWeatherLocation(text: string) {
   const normalized = text.trim()
   const patterns = [
-    /(?:what(?:'s| is) the weather in|weather in|forecast for|weather for|temperature in)\s+(.+?)[?.!]*$/i,
-    /(?:how(?:'s| is) the weather in)\s+(.+?)[?.!]*$/i,
+    /(?:what(?:'s| is) the weather(?: like)? in|weather in|forecast (?:for|in)|weather for|temperature (?:in|for))\s+(.+?)[?.!]*$/i,
+    /(?:how(?:'s| is) the weather(?: looking)? in)\s+(.+?)[?.!]*$/i,
   ]
 
   for (const pattern of patterns) {
     const match = normalized.match(pattern)
     if (match?.[1]) {
-      return match[1].trim()
+      return match[1].trim().replace(/\b(today|tomorrow|right now)\b$/i, '').trim()
     }
   }
 
