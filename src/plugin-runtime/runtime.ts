@@ -1,7 +1,6 @@
 import { getDefaultStore } from 'jotai'
 import { tool, type ToolExecutionOptions, type ToolSet } from 'ai'
 import { z } from 'zod'
-import { createChessAppSrcDoc } from '../apps/chess/srcdoc'
 import { activeAppSessionAtom, pluginFramesAtom } from '../renderer/stores/atoms/uiAtoms'
 import { getPluginAuthToken } from './auth'
 import type { ActiveAppSessionRef, PluginFrameEntry } from './atoms'
@@ -66,15 +65,20 @@ function setActiveSession(session: ActiveAppSessionRef | null) {
 }
 
 function getLocalAppSource(appId: string) {
+  const embeddedBase = typeof window !== 'undefined' && (window as typeof window & { electronAPI?: unknown }).electronAPI
+    ? `${window.location.origin}/#/embedded/chess`
+    : `${window.location.origin}/embedded/chess`
+
   if (appId === 'chess-v1') {
     return {
-      src: 'about:blank',
-      srcDoc: createChessAppSrcDoc(),
+      src: embeddedBase,
+      origin: window.location.origin,
     }
   }
   return {
     src: 'about:blank',
     srcDoc: '<!DOCTYPE html><html><body>App unavailable.</body></html>',
+    origin: 'null',
   }
 }
 
@@ -336,6 +340,7 @@ async function ensureRuntimeSession(appId: string, conversationId: string, toolC
     appId,
     sessionId: session.id,
     origin: entry.origin,
+    ...(frameSource.origin ? { origin: frameSource.origin } : {}),
     src: frameSource.src,
     srcDoc: frameSource.srcDoc,
     status: 'loading',

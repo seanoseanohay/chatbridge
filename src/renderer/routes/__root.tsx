@@ -132,6 +132,7 @@ function BackgroundImageOverlay() {
 function Root() {
   const { isExceeded, versionLoaded } = useVersion()
   const location = useLocation()
+  const isEmbeddedRoute = location.pathname.startsWith('/embedded/')
   const spellCheck = useSettingsStore((state) => state.spellCheck)
   const language = useLanguage()
   const initialized = useRef(false)
@@ -257,6 +258,16 @@ function Root() {
       document.documentElement.removeAttribute('data-need-room-for-mac-controls')
     }
   }, [needRoomForMacWindowControls])
+
+  if (isEmbeddedRoute) {
+    return (
+      <Box className="box-border App relative h-full" spellCheck={spellCheck} dir={language === 'ar' ? 'rtl' : 'ltr'}>
+        <ErrorBoundary name="embedded-main">
+          <Outlet />
+        </ErrorBoundary>
+      </Box>
+    )
+  }
 
   return (
     <Box className="box-border App relative" spellCheck={spellCheck} dir={language === 'ar' ? 'rtl' : 'ltr'}>

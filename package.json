@@ -308,6 +308,7 @@
     "lodash": "^4.17.21",
     "ofetch": "^1.0.1",
     "officeparser": "5.0.0",
+    "react-chessboard": "^5.10.0",
     "sanitize-filename": "^1.6.3",
     "uuid": "^9.0.0"
   },
