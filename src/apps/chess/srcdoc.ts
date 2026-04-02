@@ -13,46 +13,117 @@ export function createChessAppSrcDoc() {
       }
       body {
         margin: 0;
-        background: linear-gradient(160deg, #f4efe4 0%, #efe6d3 100%);
+        background:
+          radial-gradient(circle at top, rgba(255,255,255,0.82), transparent 34%),
+          linear-gradient(180deg, #f6efe3 0%, #ecdfc8 100%);
         color: #2e2418;
       }
       .wrap {
         box-sizing: border-box;
         min-height: 100vh;
         padding: 18px;
+        display: grid;
+        gap: 14px;
       }
       .header {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
+        align-items: center;
         gap: 12px;
-        margin-bottom: 12px;
+      }
+      .eyebrow {
+        font-size: 10px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #857052;
+        margin-bottom: 4px;
       }
       .title {
-        font-size: 18px;
-        font-weight: 700;
+        font-size: 22px;
+        font-weight: 800;
+        line-height: 1;
       }
       .status {
-        margin-top: 4px;
+        margin-top: 6px;
         font-size: 13px;
         color: #5e4f3b;
       }
+      .turn-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 999px;
+        padding: 10px 14px;
+        background: rgba(255,255,255,0.66);
+        box-shadow: 0 10px 24px rgba(94, 79, 59, 0.08);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .turn-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: #fff;
+        border: 1px solid rgba(46, 36, 24, 0.22);
+      }
+      .turn-dot.black {
+        background: #2f2519;
+      }
       .moves {
         min-height: 24px;
-        max-width: 220px;
+        max-width: 300px;
         text-align: right;
         font-size: 12px;
         color: #5e4f3b;
+      }
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 220px;
+        gap: 14px;
+        align-items: start;
+      }
+      .board-card {
+        background: rgba(255,255,255,0.48);
+        border: 1px solid rgba(124, 97, 65, 0.16);
+        border-radius: 24px;
+        padding: 14px;
+        box-shadow:
+          0 14px 28px rgba(94, 79, 59, 0.12),
+          inset 0 1px 0 rgba(255,255,255,0.52);
+      }
+      .sidecard {
+        border-radius: 18px;
+        padding: 14px;
+        background: rgba(255,255,255,0.56);
+        border: 1px solid rgba(124, 97, 65, 0.12);
+        box-shadow: 0 10px 20px rgba(94, 79, 59, 0.08);
+      }
+      .sidecard-title {
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: #7f6849;
+        margin-bottom: 8px;
+      }
+      .move-list {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        line-height: 1.7;
+        color: #4d3f2f;
+        white-space: pre-wrap;
       }
       .board {
         display: grid;
         grid-template-columns: repeat(8, minmax(0, 1fr));
         width: min(100%, 720px);
         margin: 0 auto;
-        border: 1px solid #b79d78;
+        border: 10px solid #7c5b36;
         border-radius: 18px;
         overflow: hidden;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 12px 24px rgba(93, 61, 26, 0.12);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.34),
+          0 18px 30px rgba(93, 61, 26, 0.16);
       }
       .square {
         aspect-ratio: 1;
@@ -67,10 +138,13 @@ export function createChessAppSrcDoc() {
       .square:hover {
         transform: scale(0.985);
       }
-      .light { background: #f7ecd7; }
-      .dark { background: #b88a5a; color: white; }
+      .light { background: linear-gradient(180deg, #f5e8cb 0%, #eedcb5 100%); }
+      .dark { background: linear-gradient(180deg, #b37a43 0%, #8e5a2d 100%); color: white; }
       .square.selected {
         box-shadow: inset 0 0 0 5px rgba(39, 110, 241, 0.78);
+      }
+      .square.last-move {
+        box-shadow: inset 0 0 0 999px rgba(255, 217, 92, 0.18);
       }
       .square.target::after {
         content: '';
@@ -86,9 +160,31 @@ export function createChessAppSrcDoc() {
         border-radius: 999px;
         border: 4px solid rgba(192, 40, 40, 0.55);
       }
+      .piece {
+        position: relative;
+        z-index: 2;
+        line-height: 1;
+        text-shadow: 0 1px 0 rgba(255,255,255,0.28), 0 2px 10px rgba(0,0,0,0.14);
+      }
+      .coord {
+        position: absolute;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        opacity: 0.72;
+        pointer-events: none;
+      }
+      .coord-file {
+        right: 7px;
+        bottom: 5px;
+      }
+      .coord-rank {
+        left: 7px;
+        top: 5px;
+      }
       .panel {
         width: min(100%, 720px);
-        margin: 14px auto 0;
+        margin: 0 auto;
         display: grid;
         gap: 8px;
       }
@@ -104,18 +200,35 @@ export function createChessAppSrcDoc() {
         font-size: 12px;
         color: #5e4f3b;
       }
+      @media (max-width: 900px) {
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+        .moves {
+          max-width: none;
+        }
+      }
     </style>
   </head>
   <body>
     <div class="wrap">
       <div class="header">
         <div>
+          <div class="eyebrow">Interactive App</div>
           <div class="title">Chess</div>
           <div class="status" id="status">Waiting for game…</div>
         </div>
-        <div class="moves" id="moves"></div>
+        <div class="turn-badge" id="turnBadge"><span class="turn-dot"></span><span id="turnText">Waiting</span></div>
       </div>
-      <div class="board" id="board"></div>
+      <div class="workspace">
+        <div class="board-card">
+          <div class="board" id="board"></div>
+        </div>
+        <div class="sidecard">
+          <div class="sidecard-title">Moves</div>
+          <div class="move-list" id="moves"></div>
+        </div>
+      </div>
       <div class="panel">
         <div class="hint" id="hint">Click a piece to see legal targets, or type a move like <code>e4</code>, <code>Nf3</code>, or <code>e2e4</code>.</div>
         <div class="meta" id="meta"></div>
@@ -142,6 +255,8 @@ export function createChessAppSrcDoc() {
       const errorEl = document.getElementById('error');
       const metaEl = document.getElementById('meta');
       const hintEl = document.getElementById('hint');
+      const turnBadgeEl = document.getElementById('turnBadge');
+      const turnTextEl = document.getElementById('turnText');
 
       function pieceSymbol(piece) {
         if (!piece) return '';
@@ -188,18 +303,29 @@ export function createChessAppSrcDoc() {
       function updateStatusText() {
         if (!activeSessionId) {
           statusEl.textContent = 'Waiting for game…';
+          turnTextEl.textContent = 'Waiting';
+          turnBadgeEl.innerHTML = '<span class="turn-dot"></span><span id="turnText">Waiting</span>';
           return;
         }
 
         if (game.isCheckmate()) {
           statusEl.textContent = 'Checkmate · ' + (currentTurnColor() === 'white' ? 'Black' : 'White') + ' wins';
+          turnBadgeEl.innerHTML = '<span class="turn-dot black"></span><span>Game Over</span>';
           return;
         }
 
         if (game.isDraw()) {
           statusEl.textContent = 'Draw';
+          turnBadgeEl.innerHTML = '<span class="turn-dot"></span><span>Draw</span>';
           return;
         }
+
+        turnBadgeEl.innerHTML =
+          '<span class="turn-dot ' +
+          (game.turn() === 'b' ? 'black' : '') +
+          '"></span><span>' +
+          (game.turn() === 'w' ? 'White to move' : 'Black to move') +
+          '</span>';
 
         statusEl.textContent =
           'Turn: ' +
@@ -211,6 +337,8 @@ export function createChessAppSrcDoc() {
 
       function render() {
         const board = game.board();
+        const verboseHistory = game.history({ verbose: true });
+        const lastMove = verboseHistory.length ? verboseHistory[verboseHistory.length - 1] : null;
         boardEl.innerHTML = '';
 
         for (let rank = 0; rank < 8; rank++) {
@@ -230,14 +358,28 @@ export function createChessAppSrcDoc() {
               square.className += targetMove.captured ? ' capture' : ' target';
             }
 
-            square.textContent = pieceSymbol(piece);
+            if (lastMove && (lastMove.from === squareName || lastMove.to === squareName)) {
+              square.className += ' last-move';
+            }
+
             square.dataset.square = squareName;
             square.setAttribute('aria-label', 'Square ' + squareName);
+            square.innerHTML =
+              '<span class="piece">' +
+              pieceSymbol(piece) +
+              '</span>' +
+              (rank === 7 ? '<span class="coord coord-file">' + squareName[0] + '</span>' : '') +
+              (file === 0 ? '<span class="coord coord-rank">' + squareName[1] + '</span>' : '');
             boardEl.appendChild(square);
           }
         }
 
-        movesEl.textContent = game.history().slice(-8).join(' · ');
+        const history = game.history();
+        const rows = [];
+        for (let i = 0; i < history.length; i += 2) {
+          rows.push(String(i / 2 + 1).padStart(2, ' ') + '. ' + history[i] + (history[i + 1] ? '   ' + history[i + 1] : ''))
+        }
+        movesEl.textContent = rows.length ? rows.slice(-10).join('\\n') : '1. ...';
         metaEl.textContent = 'FEN: ' + game.fen();
         updateStatusText();
       }
