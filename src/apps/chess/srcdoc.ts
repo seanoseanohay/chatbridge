@@ -249,7 +249,6 @@ export function createChessAppSrcDoc() {
       ${chessBrowserSource}
     </script>
     <script>
-      const Chess = window.Chess;
       const PIECES = {
         wp: '♙', wr: '♖', wn: '♘', wb: '♗', wq: '♕', wk: '♔',
         bp: '♟', br: '♜', bn: '♞', bb: '♝', bq: '♛', bk: '♚'
