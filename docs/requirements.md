@@ -71,7 +71,7 @@ Requirements are numbered and testable. Each must be verifiable by running a spe
 
 **R-42.** AppFrame iframes have `sandbox="allow-scripts allow-forms"` and no other sandbox flags. Verifiable by inspecting the DOM.
 
-**R-43.** AppFrame is rendered in the MessageList as a distinct message type. It appears inline in the conversation at the point where the assistant invoked the app.
+**R-43.** AppFrame is rendered inside the chat window as a docked app panel. The conversation history and input remain visible while the app is open.
 
 **R-44.** When APP_COMPLETE is received, the AppFrame remains visible but enters a "completed" visual state. The conversation input field becomes active again.
 

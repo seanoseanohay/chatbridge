@@ -56,7 +56,7 @@ Phases are gate-based. A phase must fully pass its gate criteria before the next
 2. Implement Seam 4: add atoms to `uiAtoms.ts`.
 3. Implement `src/plugin-runtime/eventBus.ts` (postMessage send/receive with validation).
 4. Implement `src/plugin-runtime/AppFrame.tsx` (iframe, loading states, error panel).
-5. Implement Seam 2: add `app_frame` message type render in MessageList.
+5. Implement Seam 2: add the docked AppFrame host in MessageList.
 6. Implement Seam 1: plugin tool injection in `src/renderer/packages/model-calls/stream-text.ts`.
 7. Implement Seam 3: app state summary injection in `stream-text.ts`.
 8. Implement `src/plugin-runtime/runtime.ts` (invokePluginTool, startAppSession, handleAppComplete).
@@ -71,7 +71,7 @@ Phases are gate-based. A phase must fully pass its gate criteria before the next
 - R-40: AppFrame loading spinner appears immediately
 - R-41: AppFrame error panel appears if APP_READY not received within 10s (verified by blocking the iframe URL)
 - R-42: iframe has `sandbox="allow-scripts allow-forms"` and no other flags (verified by DOM inspection)
-- R-43: AppFrame appears inline in chat at correct position
+- R-43: AppFrame appears in the docked app panel within the chat window
 - R-60: chess board renders within 2 seconds
 - R-61: illegal move returns error, board does not update
 - R-62: "what should I do here?" returns a move suggestion referencing current board state

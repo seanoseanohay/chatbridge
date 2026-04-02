@@ -14,8 +14,8 @@ These are the key files in the Chatbox codebase that the plugin runtime touches 
 | `src/renderer/stores/session/generation.ts` | Implements the active chat generation flow, builds prompt context, calls `streamText()`, and persists incremental assistant output | Read-only for Phase 1. Documented entry point for current orchestration flow |
 | `src/renderer/packages/model-calls/stream-text.ts` | Calls the LLM provider, injects system prompts, assembles tool sets, and hands tool execution to the AI SDK | Seam 1: add plugin tools to the tool set. Seam 3: inject app state summary before the model messages are built |
 | `src/renderer/stores/atoms/uiAtoms.ts` | Defines Jotai atoms for UI state: `settingsAtom`, `currentSessionAtom`, `showSidebarAtom` | Seam 4: add `activeAppSessionAtom` and `pluginRegistryAtom` |
-| `src/renderer/components/chat/MessageList.tsx` | Renders the chat message list. Each message type renders a different component | Seam 2: add conditional render for `type: 'app_frame'` messages |
-| `src/shared/types/session.ts` | Canonical Zod schemas and TypeScript types for `Session`, `Message`, and message content parts | Read-only. Understand the `Message` schema before adding `app_frame` handling |
+| `src/renderer/components/chat/MessageList.tsx` | Renders the chat message list and overall chat layout | Seam 2: add the docked AppFrame host for the active app session |
+| `src/shared/types/session.ts` | Canonical Zod schemas and TypeScript types for `Session`, `Message`, and message content parts | Read-only. Understand the `Message` schema before extending app-related rendering behavior |
 | `src/shared/defaults.ts` | Default session settings, provider list, model capabilities | Read-only. Reference for understanding `isSupportToolUse()` |
 | `src/shared/models/abstract-ai-sdk.ts` | Base class for all AI providers. Implements `chat()`, `isSupportToolUse()` | Read-only. Understand how tool results are returned to the generation pipeline |
 | `src/renderer/packages/model-calls/tools.ts` | Tool call processing helpers used by stream-text | Read-only. Understand tool result shape before writing plugin tool result injection |
@@ -65,7 +65,7 @@ User types message
                    -> injects result as tool result payload
                ELSE -> existing MCP path (unchanged)
   -> MessageList re-renders
-      [SEAM 2] if message.type === 'app_frame' -> render AppFrame
+      [SEAM 2] if active app session exists -> render docked AppFrame in the chat layout
 
 ### Confirmed Phase 0 Line Anchors
 

@@ -15,9 +15,9 @@ These are the exact scenarios the graders will run, per the assignment spec. Eac
 
 ### Scenario 2: Third-Party App UI Renders in Chat
 **Input:** Any message that triggers an app
-**Expected:** App UI appears inline in the chat window, not in a separate tab or modal. The chat input remains visible.
+**Expected:** App UI appears inside the chat window in the docked app panel, not in a separate tab or modal. The chat input remains visible.
 **Requirements:** R-43, NF-01
-**Fail condition:** App opens in a new window or a separate panel outside the message list.
+**Fail condition:** App opens in a new window or modal, or hides the chat input/history.
 
 ### Scenario 3: User Interacts with App, Then Returns to Chatbot
 **Input:** User makes a chess move, then types "nice move right?"
@@ -33,7 +33,7 @@ These are the exact scenarios the graders will run, per the assignment spec. Eac
 
 ### Scenario 5: Switching Between Multiple Apps
 **Input:** User plays chess, then asks for weather in Austin, then asks a question that could relate to either
-**Expected:** Both AppFrames are visible in the conversation history. Weather app renders correctly. The assistant correctly routes the ambiguous follow-up.
+**Expected:** Switching from Chess to Weather in the same conversation works without errors. Weather app renders correctly in the app panel. The assistant correctly routes the ambiguous follow-up.
 **Requirements:** R-30, R-73, NF-05
 **Fail condition:** One app crashes when the other loads, or the ambiguous question routes incorrectly.
 

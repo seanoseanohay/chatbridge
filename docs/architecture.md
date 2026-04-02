@@ -45,8 +45,8 @@ These are the only four locations in existing Chatbox files that may be modified
 
 ### Seam 2: Message Renderer Extension in MessageList
 **File:** `src/renderer/components/chat/MessageList.tsx`
-**Change:** Add a conditional render block that checks whether a message has `type: 'app_frame'`. If it does, render `<AppFrame>` instead of the standard message bubble. This is a new message type that Chatbox does not currently produce.
-**Risk:** Low. Existing message types render identically. Only the new `app_frame` type is affected.
+**Change:** Add a docked app host in the chat layout that renders `<AppFrame>` in a right-side panel when an active app session exists for the current conversation. The conversation history remains visible and the input stays usable while the app runs.
+**Risk:** Low. Existing message rendering stays unchanged. Only the chat layout gains an additive app panel.
 
 ### Seam 3: App Context Injection in stream-text.ts
 **File:** `src/renderer/packages/model-calls/stream-text.ts`
