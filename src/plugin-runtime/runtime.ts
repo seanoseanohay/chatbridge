@@ -73,9 +73,7 @@ function setActiveSession(session: ActiveAppSessionRef | null) {
 }
 
 function getLocalAppSource(appId: string) {
-  const embeddedBase = typeof window !== 'undefined' && (window as typeof window & { electronAPI?: unknown }).electronAPI
-    ? `${window.location.origin}/#/embedded/chess`
-    : `${window.location.origin}/embedded/chess`
+  const embeddedBase = `${window.location.origin}/embedded-chess.html`
 
   if (appId === 'chess-v1') {
     return {
