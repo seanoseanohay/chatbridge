@@ -33,6 +33,14 @@ const INVOCATION_TIMEOUT_MS = 15_000
 const iframeElements = new Map<string, HTMLIFrameElement>()
 const runtimeSessions = new Map<string, RuntimeSession>()
 
+function isLocalSessionId(sessionId: string) {
+  return sessionId.startsWith('local-app-session-')
+}
+
+function supportsLocalRuntime(appId: string) {
+  return appId === 'chess-v1'
+}
+
 function getAuthHeaders(): HeadersInit {
   const token = getPluginAuthToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -258,6 +266,9 @@ async function patchAppSession(
   sessionId: string,
   body: { status?: 'active' | 'complete' | 'error'; stateSummary?: string | null; result?: AppResult | null }
 ) {
+  if (isLocalSessionId(sessionId)) {
+    return
+  }
   await requestJson<{ session: AppSession }>(`/api/sessions/${sessionId}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
@@ -274,6 +285,9 @@ async function logInvocation(
   status: 'success' | 'error' | 'timeout',
   latencyMs: number
 ) {
+  if (isLocalSessionId(sessionId)) {
+    return
+  }
   await requestJson(`/api/sessions/${sessionId}/invocations`, {
     method: 'POST',
     body: JSON.stringify({
@@ -299,6 +313,20 @@ async function createAppSession(appId: string, conversationId: string) {
   return AppSessionSchema.parse(payload.session)
 }
 
+function createLocalAppSession(appId: string, conversationId: string): AppSession {
+  return AppSessionSchema.parse({
+    id: `local-app-session-${appId}-${Date.now()}`,
+    conversationId,
+    userId: null,
+    appId,
+    status: 'active',
+    stateSummary: null,
+    result: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  })
+}
+
 async function ensureRuntimeSession(appId: string, conversationId: string, toolCallId: string) {
   const current = getDefaultStore().get(activeAppSessionAtom)
   if (current?.appId === appId) {
@@ -313,7 +341,20 @@ async function ensureRuntimeSession(appId: string, conversationId: string, toolC
     throw new Error(`App "${appId}" is not registered`)
   }
 
-  const session = await createAppSession(appId, conversationId)
+  let session: AppSession
+  if (supportsLocalRuntime(appId) && !getPluginAuthToken()) {
+    session = createLocalAppSession(appId, conversationId)
+  } else {
+    try {
+      session = await createAppSession(appId, conversationId)
+    } catch (error) {
+      if (supportsLocalRuntime(appId) && error instanceof Error && error.message === 'Plugin backend authentication required') {
+        session = createLocalAppSession(appId, conversationId)
+      } else {
+        throw error
+      }
+    }
+  }
   const frameSource = getLocalAppSource(appId)
   const runtimeSession: RuntimeSession = {
     session,
