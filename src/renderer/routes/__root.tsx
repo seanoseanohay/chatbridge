@@ -158,6 +158,7 @@ function Root() {
 
       // Skip guide-related checks if already on a special route that must not be redirected.
       if (
+        isEmbeddedRoute ||
         location.pathname === '/guide' ||
         location.pathname === '/settings/mcp' ||
         location.pathname === '/chatbridge-auth'
@@ -217,7 +218,7 @@ function Root() {
 
   useEffect(() => {
     ;(() => {
-      if (location.pathname === '/chatbridge-auth') {
+      if (isEmbeddedRoute || location.pathname === '/chatbridge-auth') {
         return
       }
       const { startupPage } = settingsStore.getState()
