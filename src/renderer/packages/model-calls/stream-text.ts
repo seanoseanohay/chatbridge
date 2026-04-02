@@ -80,6 +80,24 @@ export function extractWeatherLocation(text: string) {
   return null
 }
 
+export function summarizeWeatherToolResult(location: string, toolResult: unknown) {
+  if (typeof toolResult !== 'object' || !toolResult) {
+    return `Weather is ready in the app panel for ${location}.`
+  }
+
+  if ('error' in toolResult) {
+    const detail =
+      'message' in toolResult && typeof toolResult.message === 'string' ? ` ${toolResult.message}` : ''
+    return `Weather lookup failed for ${location}.${detail}`.trim()
+  }
+
+  if ('location' in toolResult && 'temperatureF' in toolResult && 'description' in toolResult) {
+    return `${String(toolResult.location)} is ${String(toolResult.temperatureF)}°F with ${String(toolResult.description)}.`
+  }
+
+  return `Weather is ready in the app panel for ${location}.`
+}
+
 /**
  * 处理搜索结果并返回模型响应的通用函数
  */
@@ -416,14 +434,7 @@ export async function streamText(
         result: toolResult,
       }
 
-      const weatherText =
-        typeof toolResult === 'object' && toolResult
-          ? 'error' in toolResult
-            ? `Weather lookup failed for ${weatherLocation}.`
-            : 'location' in toolResult && 'temperatureF' in toolResult && 'description' in toolResult
-              ? `${String(toolResult.location)} is ${String(toolResult.temperatureF)}°F with ${String(toolResult.description)}.`
-              : `Weather is ready in the app panel for ${weatherLocation}.`
-          : `Weather is ready in the app panel for ${weatherLocation}.`
+      const weatherText = summarizeWeatherToolResult(weatherLocation, toolResult)
 
       result = {
         contentParts: [
