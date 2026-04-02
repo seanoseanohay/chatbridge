@@ -155,8 +155,12 @@ function Root() {
         .catch(() => ({ setting_chatboxai_first: false }) as RemoteConfig)
       setRemoteConfig(async (prev) => ({ ...(await prev), ...remoteConfig }))
 
-      // Skip guide-related checks if already on guide or settings/mcp page
-      if (location.pathname === '/guide' || location.pathname === '/settings/mcp') {
+      // Skip guide-related checks if already on a special route that must not be redirected.
+      if (
+        location.pathname === '/guide' ||
+        location.pathname === '/settings/mcp' ||
+        location.pathname === '/chatbridge-auth'
+      ) {
         initialized.current = true
         return
       }
@@ -212,6 +216,9 @@ function Root() {
 
   useEffect(() => {
     ;(() => {
+      if (location.pathname === '/chatbridge-auth') {
+        return
+      }
       const { startupPage } = settingsStore.getState()
       const sid = JSON.parse(localStorage.getItem('_currentSessionIdCachedAtom') || '""') as string
       if (sid && startupPage === 'session') {
@@ -221,7 +228,7 @@ function Root() {
         })
       }
     })()
-  }, [])
+  }, [location.pathname])
 
   useEffect(() => {
     if (platform.onNavigate) {

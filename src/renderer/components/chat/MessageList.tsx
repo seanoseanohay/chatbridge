@@ -29,6 +29,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type StateSnapshot, Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
+import AppFrame from '../../../plugin-runtime/AppFrame'
 import { platformTypeAtom } from '@/hooks/useNeedRoomForWinControls'
 import { useIsSmallScreen } from '@/hooks/useScreenChange'
 import { cn } from '@/lib/utils'
@@ -104,6 +105,9 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
   const { t } = useTranslation()
   const isSmallScreen = useIsSmallScreen()
   const widthFull = useUIStore((s) => s.widthFull)
+  useAtomValue(atoms.pluginRegistryAtom)
+  const activeAppSession = useAtomValue(atoms.activeAppSessionAtom)
+  const pluginFrames = useAtomValue(atoms.pluginFramesAtom)
 
   const { currentSession } = props
 
@@ -111,6 +115,12 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
     () => currentSession && getCurrentThreadHistoryHash(currentSession),
     [currentSession]
   )
+  const activeDockedFrame = useMemo(() => {
+    if (!activeAppSession || activeAppSession.conversationId !== currentSession.id) {
+      return undefined
+    }
+    return pluginFrames[activeAppSession.messageId]
+  }, [activeAppSession, currentSession.id, pluginFrames])
   const currentMessageList = useMemo(() => getAllMessageList(currentSession), [currentSession])
 
   const latestSummaryMessageId = useMemo(() => {
@@ -345,6 +355,9 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
 
   const renderMessageBlock = useCallback(
     (msg: SessionMessage, options: { isFirstItem: boolean; isLastItem: boolean }) => {
+      const pluginFrame = msg.contentParts.find((part) => part.type === 'tool-call' && pluginFrames[part.toolCallId])
+      const frameEntry = pluginFrame && pluginFrame.type === 'tool-call' ? pluginFrames[pluginFrame.toolCallId] : undefined
+
       return (
         <Stack key={msg.id} gap={0} pt={msg.role === 'user' ? 4 : 0}>
           {currentThreadHash[msg.id] && (
@@ -373,6 +386,19 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
               />
             )}
           </ErrorBoundary>
+          {frameEntry && isSmallScreen && (
+            <div className="px-2 pb-3 sm:px-4">
+              <AppFrame
+                appId={frameEntry.appId}
+                sessionId={frameEntry.sessionId}
+                src={frameEntry.src}
+                srcDoc={frameEntry.srcDoc}
+                origin={frameEntry.origin}
+                initConfig={frameEntry.initConfig}
+                completed={frameEntry.status === 'completed'}
+              />
+            </div>
+          )}
           {currentSession.messageForksHash?.[msg.id] && currentSession.messageForksHash[msg.id].lists.length > 1 && (
             <Flex justify="flex-end" pr="md" mr="md" className="self-end">
               <ForkNav sessionId={currentSession.id} msgId={msg.id} forks={currentSession.messageForksHash[msg.id]} />
@@ -381,7 +407,7 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
         </Stack>
       )
     },
-    [currentSession, currentThreadHash, latestSummaryMessageId]
+    [currentSession, currentThreadHash, isSmallScreen, latestSummaryMessageId, pluginFrames]
   )
 
   useImperativeHandle(ref, () => ({
@@ -393,109 +419,134 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
   return (
     <div className={cn('w-full h-full mx-auto', props.className)}>
       <BlockCodeCollapsedStateProvider defaultCollapsed={!!settingsStore.getState().autoCollapseCodeBlock}>
-        <div className="overflow-hidden h-full pr-0 pl-1 sm:pl-0 relative" ref={messageListRef}>
-          <Virtuoso
-            style={{ scrollbarGutter: 'stable' }}
-            className={platformType === 'win32' ? 'scrollbar-custom' : ''}
-            data={renderItems}
-            ref={virtuoso}
-            followOutput="smooth"
-            {...(sessionScrollPositionCache.has(currentSession.id)
-              ? {
-                  restoreStateFrom: sessionScrollPositionCache.get(currentSession.id),
-                  // 需要额外设置 initialScrollTop，否则恢复位置后 scrollTop 为 0。这时如果用户没有滚动，那么下次保存时 scrollTop 将记为 0，导致下一次恢复时位置始终为顶部。
-                  initialScrollTop: sessionScrollPositionCache.get(currentSession.id)?.scrollTop,
-                }
-              : {
-                  initialTopMostItemIndex: renderItems.length - 1,
-                })}
-            increaseViewportBy={{ top: 2000, bottom: 2000 }}
-            itemContent={(index, item) => {
-              const itemClassName = widthFull ? 'w-full' : 'max-w-4xl mx-auto'
-              const isFirstItem = index === 0
-              const isLastItem = index === renderItems.length - 1
+        <div className="flex h-full gap-0 lg:gap-4">
+          <div className="overflow-hidden h-full min-w-0 flex-1 pr-0 pl-1 sm:pl-0 relative" ref={messageListRef}>
+            <Virtuoso
+              style={{ scrollbarGutter: 'stable' }}
+              className={platformType === 'win32' ? 'scrollbar-custom' : ''}
+              data={renderItems}
+              ref={virtuoso}
+              followOutput={(isAtBottom) => (isAtBottom ? 'smooth' : false)}
+              {...(sessionScrollPositionCache.has(currentSession.id)
+                ? {
+                    restoreStateFrom: sessionScrollPositionCache.get(currentSession.id),
+                    // 需要额外设置 initialScrollTop，否则恢复位置后 scrollTop 为 0。这时如果用户没有滚动，那么下次保存时 scrollTop 将记为 0，导致下一次恢复时位置始终为顶部。
+                    initialScrollTop: sessionScrollPositionCache.get(currentSession.id)?.scrollTop,
+                  }
+                : {
+                    initialTopMostItemIndex: renderItems.length - 1,
+                  })}
+              increaseViewportBy={{ top: 2000, bottom: 2000 }}
+              itemContent={(index, item) => {
+                const itemClassName = widthFull ? 'w-full' : 'max-w-4xl mx-auto'
+                const isFirstItem = index === 0
+                const isLastItem = index === renderItems.length - 1
 
-              if (item.type === 'group') {
-                return (
-                  <div className={itemClassName}>
-                    <div
-                      className="flex flex-col pt-5"
-                      style={
-                        messageViewportHeight > 0 && isNewMessage
-                          ? { minHeight: `${messageViewportHeight}px` }
-                          : undefined
-                      } // key
-                    >
-                      {item.messages.map((message, messageIndex) =>
-                        renderMessageBlock(message, {
-                          isFirstItem: isFirstItem && messageIndex === 0,
-                          isLastItem: isLastItem && messageIndex === item.messages.length - 1,
-                        })
-                      )}
-                      {/* <div aria-hidden="true" className="flex-1" /> */}
-                    </div>
-                  </div>
-                )
-              }
-
-              return (
-                <div className={itemClassName}>{renderMessageBlock(item.messages[0], { isFirstItem, isLastItem })}</div>
-              )
-            }}
-            atTopStateChange={setAtTop}
-            atBottomStateChange={setAtBottom}
-            onScroll={handleScroll}
-          />
-
-          {!isSmallScreen ? (
-            <MessageNavigation
-              visible={messageNavigationVisible}
-              onVisibleChange={handleMessageNavigationVisibleChanged}
-              onScrollToTop={handleScrollToTop}
-              onScrollToBottom={handleScrollToBottom}
-              onScrollToPrev={handleScrollToPrev}
-              onScrollToNext={handleScrollToNext}
-            />
-          ) : (
-            <>
-              <Transition mounted={showScrollToPrev && !atTop} transition="fade-down">
-                {(transitionStyle) => (
-                  <Flex
-                    style={transitionStyle}
-                    className="absolute z-10 top-0 left-0 right-0 leading-tight bg-chatbox-background-secondary"
-                  >
-                    {[
-                      { text: t('Return to the top'), icon: IconArrowBarToUp, onClick: handleScrollToTop },
-                      {
-                        text: t('Back to previous message'),
-                        icon: IconArrowUp,
-                        onClick: handleScrollToPrev,
-                      },
-                    ].map((item, idx) => (
-                      <Button
-                        key={item.text}
-                        variant="transparent"
-                        className={cn('w-1/2', idx === 0 ? 'border-r border-r-chatbox-border-primary' : '')}
-                        classNames={{
-                          section: '!mr-xxs',
-                        }}
-                        size="xs"
-                        h="auto"
-                        py={6}
-                        c="chatbox-tertiary"
-                        onClick={item.onClick}
-                        leftSection={<ScalableIcon icon={item.icon} size={16} />}
+                if (item.type === 'group') {
+                  return (
+                    <div className={itemClassName}>
+                      <div
+                        className="flex flex-col pt-5"
+                        style={
+                          messageViewportHeight > 0 && isNewMessage
+                            ? { minHeight: `${messageViewportHeight}px` }
+                            : undefined
+                        }
                       >
-                        {item.text}
-                      </Button>
-                    ))}
-                  </Flex>
-                )}
-              </Transition>
-              <Transition mounted={!atBottom} transition="slide-up">
-                {(transitionStyle) => <ScrollToBottomButton onClick={handleScrollToBottom} style={transitionStyle} />}
-              </Transition>
-            </>
+                        {item.messages.map((message, messageIndex) =>
+                          renderMessageBlock(message, {
+                            isFirstItem: isFirstItem && messageIndex === 0,
+                            isLastItem: isLastItem && messageIndex === item.messages.length - 1,
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className={itemClassName}>{renderMessageBlock(item.messages[0], { isFirstItem, isLastItem })}</div>
+                )
+              }}
+              atTopStateChange={setAtTop}
+              atBottomStateChange={setAtBottom}
+              onScroll={handleScroll}
+            />
+
+            {!isSmallScreen ? (
+              <MessageNavigation
+                visible={messageNavigationVisible}
+                onVisibleChange={handleMessageNavigationVisibleChanged}
+                onScrollToTop={handleScrollToTop}
+                onScrollToBottom={handleScrollToBottom}
+                onScrollToPrev={handleScrollToPrev}
+                onScrollToNext={handleScrollToNext}
+              />
+            ) : (
+              <>
+                <Transition mounted={showScrollToPrev && !atTop} transition="fade-down">
+                  {(transitionStyle) => (
+                    <Flex
+                      style={transitionStyle}
+                      className="absolute z-10 top-0 left-0 right-0 leading-tight bg-chatbox-background-secondary"
+                    >
+                      {[
+                        { text: t('Return to the top'), icon: IconArrowBarToUp, onClick: handleScrollToTop },
+                        {
+                          text: t('Back to previous message'),
+                          icon: IconArrowUp,
+                          onClick: handleScrollToPrev,
+                        },
+                      ].map((item, idx) => (
+                        <Button
+                          key={item.text}
+                          variant="transparent"
+                          className={cn('w-1/2', idx === 0 ? 'border-r border-r-chatbox-border-primary' : '')}
+                          classNames={{
+                            section: '!mr-xxs',
+                          }}
+                          size="xs"
+                          h="auto"
+                          py={6}
+                          c="chatbox-tertiary"
+                          onClick={item.onClick}
+                          leftSection={<ScalableIcon icon={item.icon} size={16} />}
+                        >
+                          {item.text}
+                        </Button>
+                      ))}
+                    </Flex>
+                  )}
+                </Transition>
+                <Transition mounted={!atBottom} transition="slide-up">
+                  {(transitionStyle) => <ScrollToBottomButton onClick={handleScrollToBottom} style={transitionStyle} />}
+                </Transition>
+              </>
+            )}
+          </div>
+
+          {!isSmallScreen && activeDockedFrame && (
+            <aside className="hidden lg:flex h-full w-[420px] xl:w-[500px] shrink-0 flex-col border-l border-chatbox-border-primary bg-chatbox-background-secondary/40 pl-4 pr-3 py-4">
+              <div className="pb-3">
+                <Text size="sm" fw={700}>
+                  App Panel
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {activeDockedFrame.appId}
+                </Text>
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <AppFrame
+                  appId={activeDockedFrame.appId}
+                  sessionId={activeDockedFrame.sessionId}
+                  src={activeDockedFrame.src}
+                  srcDoc={activeDockedFrame.srcDoc}
+                  origin={activeDockedFrame.origin}
+                  initConfig={activeDockedFrame.initConfig}
+                  completed={activeDockedFrame.status === 'completed'}
+                />
+              </div>
+            </aside>
           )}
         </div>
       </BlockCodeCollapsedStateProvider>
