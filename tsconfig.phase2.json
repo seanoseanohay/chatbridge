@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/plugin-runtime/**/*.ts",
+    "src/plugin-runtime/**/*.tsx",
+    "src/apps/chess/**/*.ts",
+    "src/renderer/packages/model-calls/stream-text.ts",
+    "src/renderer/components/chat/MessageList.tsx",
+    "src/renderer/stores/atoms/uiAtoms.ts"
+  ]
+}

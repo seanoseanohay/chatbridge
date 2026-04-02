@@ -35,6 +35,7 @@ import {
 } from './tools'
 import fileToolSet from './toolsets/file'
 import { getToolSet } from './toolsets/knowledge-base'
+import { getPluginTools, injectActiveAppSummary } from '../../../plugin-runtime/runtime'
 import websearchToolSet, { parseLinkTool, webSearchTool } from './toolsets/web-search'
 
 /**
@@ -175,6 +176,8 @@ export async function streamText(
     toolSetInstructions += websearchToolSet.description
   }
 
+  params.messages = injectActiveAppSummary(params.messages)
+
   params.messages = injectModelSystemPrompt(
     model.modelId,
     params.messages,
@@ -295,6 +298,7 @@ export async function streamText(
     // 4. construct tool set
     let tools: ToolSet = {
       ...mcpController.getAvailableTools(),
+      ...getPluginTools(sessionId),
     }
     if (webBrowsing) {
       tools.web_search = webSearchTool

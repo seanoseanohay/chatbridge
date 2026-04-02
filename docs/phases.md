@@ -13,8 +13,8 @@ Phases are gate-based. A phase must fully pass its gate criteria before the next
 2. Confirm `npm run serve:web` renders the web version in a browser.
 3. Read the eight key Chatbox files listed in `docs/system-map.md`.
 4. Locate the exact line numbers for each of the four seam points in the actual forked code.
-5. Document the exact current signature of `submitMessage()` in `sessionActions.ts`.
-6. Document the exact message type union in `src/shared/types.ts`.
+5. Document the exact current signature of `generate()` in `src/renderer/stores/session/generation.ts`, and note that `sessionActions.ts` is now a re-export facade.
+6. Document the exact message content-part union in `src/shared/types/session.ts`.
 7. Fill in `docs/architecture.md` Seam 2 with the confirmed filename for MessageList.
 8. Fill in `docs/system-map.md` with the confirmed exact file paths after reading the repo.
 
@@ -57,7 +57,7 @@ Phases are gate-based. A phase must fully pass its gate criteria before the next
 3. Implement `src/plugin-runtime/eventBus.ts` (postMessage send/receive with validation).
 4. Implement `src/plugin-runtime/AppFrame.tsx` (iframe, loading states, error panel).
 5. Implement Seam 2: add `app_frame` message type render in MessageList.
-6. Implement Seam 1: tool routing intercept in `sessionActions.ts`.
+6. Implement Seam 1: plugin tool injection in `src/renderer/packages/model-calls/stream-text.ts`.
 7. Implement Seam 3: app state summary injection in `stream-text.ts`.
 8. Implement `src/plugin-runtime/runtime.ts` (invokePluginTool, startAppSession, handleAppComplete).
 9. Build Chess app: `src/apps/chess/` with manifest, game logic, iframe entry point.

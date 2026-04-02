@@ -9,7 +9,7 @@
 - Fork and run Chatbox locally in development mode
 - Backend API service (Express, Postgres, Redis) with the schema defined in `docs/architecture.md`
 - Plugin registry: app registration, manifest validation, tool schema storage, origin allowlist
-- Plugin runtime: seam intercept in `sessionActions.ts`, tool routing, app session management
+- Plugin runtime: seam intercept in `src/renderer/packages/model-calls/stream-text.ts`, tool routing, app session management
 - AppFrame component: sandboxed iframe host with loading states, error panels, and retry
 - postMessage event bus: typed events, validation, sequence numbering
 - Completion signaling: APP_COMPLETE handler, Postgres write, conversation context merge

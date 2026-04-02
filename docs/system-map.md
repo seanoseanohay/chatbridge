@@ -11,13 +11,13 @@ These are the key files in the Chatbox codebase that the plugin runtime touches 
 
 | File | What It Does | Your Interaction |
 |------|-------------|-----------------|
-| `src/renderer/stores/sessionActions.ts` | Orchestrates all AI turns: builds context, calls stream-text, persists messages | Seam 1: intercept tool routing after LLM returns tool call |
-| `src/renderer/packages/model-calls/stream-text.ts` | Calls the LLM provider, handles streaming tokens, processes tool use responses | Seam 3: inject app state summary before messages array is built |
+| `src/renderer/stores/session/generation.ts` | Implements the active chat generation flow, builds prompt context, calls `streamText()`, and persists incremental assistant output | Read-only for Phase 1. Documented entry point for current orchestration flow |
+| `src/renderer/packages/model-calls/stream-text.ts` | Calls the LLM provider, injects system prompts, assembles tool sets, and hands tool execution to the AI SDK | Seam 1: add plugin tools to the tool set. Seam 3: inject app state summary before the model messages are built |
 | `src/renderer/stores/atoms/uiAtoms.ts` | Defines Jotai atoms for UI state: `settingsAtom`, `currentSessionAtom`, `showSidebarAtom` | Seam 4: add `activeAppSessionAtom` and `pluginRegistryAtom` |
-| `src/renderer/components/MessageList.tsx` | Renders the chat message list. Each message type renders a different component | Seam 2: add conditional render for `type: 'app_frame'` messages |
-| `src/shared/types.ts` | All shared TypeScript types: `Session`, `Message`, `SessionSettings`, `ModelInterface` | Read-only. Understand the `Message` type before adding `app_frame` |
+| `src/renderer/components/chat/MessageList.tsx` | Renders the chat message list. Each message type renders a different component | Seam 2: add conditional render for `type: 'app_frame'` messages |
+| `src/shared/types/session.ts` | Canonical Zod schemas and TypeScript types for `Session`, `Message`, and message content parts | Read-only. Understand the `Message` schema before adding `app_frame` handling |
 | `src/shared/defaults.ts` | Default session settings, provider list, model capabilities | Read-only. Reference for understanding `isSupportToolUse()` |
-| `src/shared/models/abstract-ai-sdk.ts` | Base class for all AI providers. Implements `chat()`, `isSupportToolUse()` | Read-only. Understand how tool results are returned to `sessionActions.ts` |
+| `src/shared/models/abstract-ai-sdk.ts` | Base class for all AI providers. Implements `chat()`, `isSupportToolUse()` | Read-only. Understand how tool results are returned to the generation pipeline |
 | `src/renderer/packages/model-calls/tools.ts` | Tool call processing helpers used by stream-text | Read-only. Understand tool result shape before writing plugin tool result injection |
 
 ### Files You Must Not Touch
@@ -34,11 +34,12 @@ All files in `.erb/` — Webpack build configuration.
 ```
 User types message
   -> InputBox captures input
-  -> sessionActions.ts: submitMessage()
+  -> session/messages.ts: submitNewUserMessage()
+  -> session/generation.ts: generate()
        -> builds context from currentSessionAtom + maxContextMessageCount
        -> queries Knowledge Base if enabled
-       -> prepares MCP tools if configured
        -> calls stream-text.ts
+           -> prepares tool set from MCP controller and built-in tools
            -> calls AbstractAISDKModel.chat()
            -> streams tokens back, updates Jotai atoms
            -> if tool call returned: processes via tools.ts
@@ -51,20 +52,29 @@ User types message
 ```
 User types message
   -> InputBox captures input
-  -> sessionActions.ts: submitMessage()
-       -> builds context (SEAM 3: prepend app state summary if active session)
+  -> session/messages.ts: submitNewUserMessage()
+  -> session/generation.ts: generate()
        -> calls stream-text.ts
+           [SEAM 3] prepend app state summary if active session
            -> streams tokens
-           -> if tool call returned:
-               [SEAM 1] check plugin registry
+           -> constructs tools
+               [SEAM 1] add plugin tool executors next to MCP and built-in tools
                IF plugin tool -> pluginRuntime.invokePluginTool()
                    -> sends INVOKE_TOOL via eventBus to iframe
                    -> waits for APP_RESULT (with timeout)
-                   -> injects result as tool result message
-                   -> if APP_COMPLETE: merge result, resume assistant
+                   -> injects result as tool result payload
                ELSE -> existing MCP path (unchanged)
   -> MessageList re-renders
       [SEAM 2] if message.type === 'app_frame' -> render AppFrame
+
+### Confirmed Phase 0 Line Anchors
+
+- `src/renderer/stores/session/generation.ts:110` — `generate()`
+- `src/renderer/packages/model-calls/stream-text.ts:178` — system-prompt/message injection area
+- `src/renderer/packages/model-calls/stream-text.ts:295` — tool set construction
+- `src/renderer/stores/atoms/uiAtoms.ts:28` — current atom export block
+- `src/renderer/components/chat/MessageList.tsx:346` — message block renderer
+- `src/shared/types/session.ts:120` — `MessageContentPartSchema`
 ```
 
 ---

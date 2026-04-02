@@ -55,7 +55,7 @@ These constraints are non-negotiable. None may be changed without explicit human
 
 **DC-1.** Node.js version must remain within 20.x to 22.x as required by Chatbox.
 
-**DC-2.** Package manager is npm. pnpm is not supported by Chatbox and must not be used.
+**DC-2.** Package manager is `pnpm` for dependency installation and lockfile integrity because the upstream Chatbox repo ships `pnpm-lock.yaml` and `packageManager: pnpm`. Do not switch the project to npm without explicit human approval.
 
 **DC-3.** New npm dependencies added to the root `package.json` require human approval. Dependencies added to `server/package.json` are at Codex discretion within reason.
 

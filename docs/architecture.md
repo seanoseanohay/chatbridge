@@ -11,7 +11,7 @@
 │  React 18, Jotai, TanStack Router, Webpack          │
 │  Components: Sidebar, MessageList, InputBox         │
 │  State: settingsAtom, currentSessionAtom            │
-│  Orchestration: sessionActions.ts, stream-text.ts   │
+│  Orchestration: session/generation.ts, stream-text.ts │
 └─────────────────┬───────────────────────────────────┘
                   │ SEAM (4 points, defined below)
 ┌─────────────────▼───────────────────────────────────┐
@@ -38,13 +38,13 @@
 
 These are the only four locations in existing Chatbox files that may be modified. All other existing files are read-only.
 
-### Seam 1: Tool Routing in sessionActions.ts
-**File:** `src/renderer/stores/sessionActions.ts`
-**Change:** After the LLM returns a tool call, before passing it to the existing MCP handler, check whether the tool name is registered in the plugin registry. If it is, route to `pluginRuntime.invokePluginTool()` instead of the MCP handler. If not, pass through unchanged.
+### Seam 1: Tool Routing in stream-text.ts
+**File:** `src/renderer/packages/model-calls/stream-text.ts`
+**Change:** When constructing the `tools` object for `model.chat()`, add plugin tools alongside the existing MCP tool set from `mcpController.getAvailableTools()`. Plugin tools must execute through `pluginRuntime.invokePluginTool()`, while non-plugin tools continue unchanged through the existing MCP and built-in tool paths.
 **Risk:** Low. The branch is additive. The existing MCP path is untouched for non-plugin tools.
 
 ### Seam 2: Message Renderer Extension in MessageList
-**File:** `src/renderer/components/MessageList.tsx` (exact path to be confirmed against forked repo)
+**File:** `src/renderer/components/chat/MessageList.tsx`
 **Change:** Add a conditional render block that checks whether a message has `type: 'app_frame'`. If it does, render `<AppFrame>` instead of the standard message bubble. This is a new message type that Chatbox does not currently produce.
 **Risk:** Low. Existing message types render identically. Only the new `app_frame` type is affected.
 
@@ -180,6 +180,19 @@ Summary: {appStateSummary}
 ```
 
 `appStateSummary` is the `stateSummary` string from the most recent `APP_STATE_UPDATE` event. For Chess, this is a compact board description and move count. For Weather, it is the last queried location and conditions. For Spotify, it is the playlist title and track count.
+
+---
+
+## Phase 0 Confirmed Upstream Anchors
+
+Confirmed against upstream Chatbox commit `4bf64ec3`:
+
+- Seam 1 tool assembly anchor: `src/renderer/packages/model-calls/stream-text.ts:295`
+- Seam 3 message injection anchor: `src/renderer/packages/model-calls/stream-text.ts:178`
+- Seam 4 atom insertion anchor: `src/renderer/stores/atoms/uiAtoms.ts:28`
+- Seam 2 message renderer anchor: `src/renderer/components/chat/MessageList.tsx:346`
+- Chat generation entry point: `src/renderer/stores/session/generation.ts:110`
+- Message content-part union: `src/shared/types/session.ts:120`
 
 ---
 
