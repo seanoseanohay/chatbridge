@@ -146,6 +146,7 @@ export default defineConfig(({ mode }) => {
         'process.env.USE_LOCAL_API': JSON.stringify(process.env.USE_LOCAL_API || ''),
         'process.env.USE_BETA_API': JSON.stringify(process.env.USE_BETA_API || ''),
         'process.env.PLUGIN_BACKEND_URL': JSON.stringify(process.env.PLUGIN_BACKEND_URL || ''),
+        'process.env.OPENWEATHER_API_KEY': JSON.stringify(process.env.OPENWEATHER_API_KEY || ''),
       },
     },
     preload: {

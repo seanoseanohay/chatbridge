@@ -2,6 +2,7 @@ import { getDefaultStore } from 'jotai'
 import { tool, type ToolExecutionOptions, type ToolSet } from 'ai'
 import { z } from 'zod'
 import { createChessAppSrcDoc } from '../apps/chess/srcdoc'
+import { createWeatherAppSrcDoc } from '../apps/weather/srcdoc'
 import { activeAppSessionAtom, pluginFramesAtom } from '../renderer/stores/atoms/uiAtoms'
 import { getPluginAuthToken } from './auth'
 import type { ActiveAppSessionRef, PluginFrameEntry } from './atoms'
@@ -33,13 +34,15 @@ type RuntimeSession = {
 const INVOCATION_TIMEOUT_MS = 15_000
 const iframeElements = new Map<string, HTMLIFrameElement>()
 const runtimeSessions = new Map<string, RuntimeSession>()
+const frameReadySessions = new Set<string>()
+const frameWaiters = new Map<string, Set<{ resolve: () => void; reject: (error: Error) => void; timeoutId: number }>>()
 
 function isLocalSessionId(sessionId: string) {
   return sessionId.startsWith('local-app-session-')
 }
 
 function supportsLocalRuntime(appId: string) {
-  return appId === 'chess-v1'
+  return appId === 'chess-v1' || appId === 'weather-v1'
 }
 
 function getAuthHeaders(): HeadersInit {
@@ -92,11 +95,27 @@ function getLocalAppSource(appId: string) {
       origin: 'null',
     }
   }
+  if (appId === 'weather-v1') {
+    return {
+      src: 'about:blank',
+      srcDoc: createWeatherAppSrcDoc(),
+      origin: 'null',
+    }
+  }
   return {
     src: 'about:blank',
     srcDoc: '<!DOCTYPE html><html><body>App unavailable.</body></html>',
     origin: 'null',
   }
+}
+
+function getLocalRuntimeConfig(appId: string) {
+  if (appId === 'weather-v1') {
+    return {
+      openWeatherApiKey: process.env.OPENWEATHER_API_KEY || '',
+    }
+  }
+  return {}
 }
 
 function buildSummaryText(session: RuntimeSession) {
@@ -336,11 +355,26 @@ function createLocalAppSession(appId: string, conversationId: string): AppSessio
   })
 }
 
-async function ensureRuntimeSession(appId: string, conversationId: string, toolCallId: string) {
+async function ensureRuntimeSession(
+  appId: string,
+  conversationId: string,
+  toolCallId: string,
+  initConfig?: Record<string, unknown>
+) {
   const current = getDefaultStore().get(activeAppSessionAtom)
   if (current?.appId === appId) {
     const existing = runtimeSessions.get(current.sessionId)
     if (existing) {
+      if (initConfig) {
+        updateFrameEntry(existing.frameToolCallId, (entry) => ({
+          ...entry,
+          initConfig: {
+            ...(entry.initConfig || {}),
+            ...getLocalRuntimeConfig(appId),
+            ...initConfig,
+          },
+        }))
+      }
       return existing
     }
   }
@@ -397,6 +431,8 @@ async function ensureRuntimeSession(appId: string, conversationId: string, toolC
     initConfig: {
       appId,
       conversationId,
+      ...getLocalRuntimeConfig(appId),
+      ...(initConfig || {}),
     },
   })
 
@@ -410,6 +446,7 @@ function getFrameTimeoutError(toolName: string) {
 export function registerAppFrame(sessionId: string, iframe: HTMLIFrameElement | null) {
   if (!iframe) {
     iframeElements.delete(sessionId)
+    frameReadySessions.delete(sessionId)
     return
   }
   iframeElements.set(sessionId, iframe)
@@ -420,11 +457,63 @@ export function markAppFrameStatus(sessionId: string, status: PluginFrameEntry['
   if (!runtimeSession) {
     return
   }
+  if (status === 'ready' || status === 'completed') {
+    frameReadySessions.add(sessionId)
+    const waiters = frameWaiters.get(sessionId)
+    if (waiters) {
+      for (const waiter of waiters) {
+        window.clearTimeout(waiter.timeoutId)
+        waiter.resolve()
+      }
+      frameWaiters.delete(sessionId)
+    }
+  } else if (status === 'error') {
+    frameReadySessions.delete(sessionId)
+    const waiters = frameWaiters.get(sessionId)
+    if (waiters) {
+      const nextError = new Error(error || 'App frame failed to load')
+      for (const waiter of waiters) {
+        window.clearTimeout(waiter.timeoutId)
+        waiter.reject(nextError)
+      }
+      frameWaiters.delete(sessionId)
+    }
+  }
   updateFrameEntry(runtimeSession.frameToolCallId, (entry) => ({
     ...entry,
     status,
     error,
   }))
+}
+
+function waitForFrameReady(sessionId: string, timeoutMs = 10_000) {
+  if (frameReadySessions.has(sessionId)) {
+    return Promise.resolve()
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      const waiters = frameWaiters.get(sessionId)
+      if (!waiters) {
+        reject(new Error('App frame was not ready in time'))
+        return
+      }
+      for (const waiter of waiters) {
+        if (waiter.timeoutId === timeoutId) {
+          waiters.delete(waiter)
+          break
+        }
+      }
+      if (waiters.size === 0) {
+        frameWaiters.delete(sessionId)
+      }
+      reject(new Error('App frame was not ready in time'))
+    }, timeoutMs)
+
+    const waiters = frameWaiters.get(sessionId) || new Set()
+    waiters.add({ resolve, reject, timeoutId })
+    frameWaiters.set(sessionId, waiters)
+  })
 }
 
 export function dismissAppSession(sessionId: string) {
@@ -444,6 +533,15 @@ export function dismissAppSession(sessionId: string) {
   runtimeSession.unregister?.()
   runtimeSessions.delete(sessionId)
   iframeElements.delete(sessionId)
+  frameReadySessions.delete(sessionId)
+  const waiters = frameWaiters.get(sessionId)
+  if (waiters) {
+    for (const waiter of waiters) {
+      window.clearTimeout(waiter.timeoutId)
+      waiter.reject(new Error('App session closed'))
+    }
+    frameWaiters.delete(sessionId)
+  }
   removeFrameEntry(runtimeSession.frameToolCallId)
 
   const activeSession = getDefaultStore().get(activeAppSessionAtom)
@@ -460,7 +558,9 @@ export async function invokePluginTool(
   const runtimeSession =
     toolName === 'chess_start'
       ? await ensureRuntimeSession(options.appId, options.conversationId, options.toolCallId)
-      : getRuntimeSessionByTool(toolName)
+      : toolName === 'weather_get'
+        ? await ensureRuntimeSession(options.appId, options.conversationId, options.toolCallId)
+        : getRuntimeSessionByTool(toolName)
 
   if (!runtimeSession) {
     throw new Error(`No active plugin session found for tool "${toolName}"`)
@@ -475,6 +575,8 @@ export async function invokePluginTool(
     void logInvocation(runtimeSession.session.id, toolName, params, result, 'success', 0)
     return result
   }
+
+  await waitForFrameReady(runtimeSession.session.id)
 
   const iframe = getFrameForSession(runtimeSession.session.id)
   if (!iframe) {

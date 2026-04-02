@@ -59,5 +59,7 @@ describe('plugin registry', () => {
     expect(result.status).toBe('unauthorized')
     expect(resolveToolToApp('chess_start')?.appId).toBe('chess-v1')
     expect(getAppManifest('chess-v1')?.name).toBe('Chess')
+    expect(resolveToolToApp('weather_get')?.appId).toBe('weather-v1')
+    expect(getAppManifest('weather-v1')?.name).toBe('Weather')
   })
 })

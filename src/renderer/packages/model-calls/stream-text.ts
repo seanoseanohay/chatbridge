@@ -63,6 +63,23 @@ function shouldLaunchChessApp(text: string) {
   )
 }
 
+function extractWeatherLocation(text: string) {
+  const normalized = text.trim()
+  const patterns = [
+    /(?:what(?:'s| is) the weather in|weather in|forecast for|weather for|temperature in)\s+(.+?)[?.!]*$/i,
+    /(?:how(?:'s| is) the weather in)\s+(.+?)[?.!]*$/i,
+  ]
+
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern)
+    if (match?.[1]) {
+      return match[1].trim()
+    }
+  }
+
+  return null
+}
+
 /**
  * 处理搜索结果并返回模型响应的通用函数
  */
@@ -370,6 +387,51 @@ export async function streamText(
           {
             type: 'text',
             text: 'Chess is ready in the app panel. Make your move on the board or type standard notation.',
+          },
+        ],
+      }
+      onResultChange(result)
+      return { result, coreMessages }
+    }
+
+    const weatherLocation = extractWeatherLocation(latestUserText)
+    if (sessionId && tools.weather_get && weatherLocation) {
+      const toolCallId = `weather_get_${uniqueId()}`
+      const toolResult = await invokePluginTool(
+        'weather_get',
+        { location: weatherLocation },
+        {
+          conversationId: sessionId,
+          appId: 'weather-v1',
+          toolCallId,
+        }
+      )
+
+      const toolCallPart: MessageToolCallPart = {
+        type: 'tool-call',
+        state: 'result',
+        toolCallId,
+        toolName: 'weather_get',
+        args: { location: weatherLocation },
+        result: toolResult,
+      }
+
+      const weatherText =
+        typeof toolResult === 'object' && toolResult
+          ? 'error' in toolResult
+            ? `Weather lookup failed for ${weatherLocation}.`
+            : 'location' in toolResult && 'temperatureF' in toolResult && 'description' in toolResult
+              ? `${String(toolResult.location)} is ${String(toolResult.temperatureF)}°F with ${String(toolResult.description)}.`
+              : `Weather is ready in the app panel for ${weatherLocation}.`
+          : `Weather is ready in the app panel for ${weatherLocation}.`
+
+      result = {
+        contentParts: [
+          ...infoParts,
+          toolCallPart,
+          {
+            type: 'text',
+            text: weatherText,
           },
         ],
       }

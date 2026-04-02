@@ -75,6 +75,37 @@ const registryManifests = [
       },
     ],
   },
+  {
+    id: 'weather-v1',
+    name: 'Weather',
+    version: '1.0.0',
+    origin: 'https://apps.chatbridge.app/weather',
+    requiresAuth: false,
+    tools: [
+      {
+        name: 'weather_get',
+        description: 'Show the current weather and a 5-day forecast for a city.',
+        parameters: {
+          type: 'object',
+          properties: {
+            location: { type: 'string' },
+          },
+          required: ['location'],
+          additionalProperties: false,
+        },
+        returns: {
+          type: 'object',
+          properties: {
+            location: { type: 'string' },
+            temperatureF: { type: 'number' },
+            description: { type: 'string' },
+          },
+          required: ['location', 'temperatureF', 'description'],
+          additionalProperties: true,
+        },
+      },
+    ],
+  },
 ] satisfies AppManifest[]
 
 const registry = registryManifests.map((manifest) => {
