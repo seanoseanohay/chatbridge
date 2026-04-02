@@ -1,5 +1,5 @@
 import NiceModal from '@ebay/nice-modal-react'
-import { ActionIcon, Button, Flex, Stack, Text, Transition } from '@mantine/core'
+import { ActionIcon, Alert, Button, Flex, Stack, Text, Transition } from '@mantine/core'
 import { useThrottledCallback } from '@mantine/hooks'
 import type { Session, Message as SessionMessage, SessionThreadBrief } from '@shared/types'
 import {
@@ -109,6 +109,7 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
   useAtomValue(atoms.pluginRegistryAtom)
   const activeAppSession = useAtomValue(atoms.activeAppSessionAtom)
   const pluginFrames = useAtomValue(atoms.pluginFramesAtom)
+  const pluginRegistryStatus = useAtomValue(atoms.pluginRegistryStatusAtom)
 
   const { currentSession } = props
 
@@ -428,6 +429,20 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
       <BlockCodeCollapsedStateProvider defaultCollapsed={!!settingsStore.getState().autoCollapseCodeBlock}>
         <div className="flex h-full gap-0 lg:gap-4">
           <div className="overflow-hidden h-full min-w-0 flex-1 pr-0 pl-1 sm:pl-0 relative" ref={messageListRef}>
+            {(pluginRegistryStatus.status === 'unavailable' || pluginRegistryStatus.status === 'unauthorized') && (
+              <div className={cn('mx-auto max-w-4xl px-3 pt-3', widthFull ? 'w-full' : '')}>
+                <Alert
+                  color={pluginRegistryStatus.status === 'unauthorized' ? 'yellow' : 'red'}
+                  title={pluginRegistryStatus.status === 'unauthorized' ? 'Apps require login' : 'Apps unavailable'}
+                >
+                  <Text size="sm">
+                    {pluginRegistryStatus.status === 'unauthorized'
+                      ? 'Sign in to ChatBridge in Settings to enable backend-powered apps.'
+                      : 'Chat still works, but backend-powered apps are currently unavailable.'}
+                  </Text>
+                </Alert>
+              </div>
+            )}
             <Virtuoso
               style={{ scrollbarGutter: 'stable' }}
               className={platformType === 'win32' ? 'scrollbar-custom' : ''}
