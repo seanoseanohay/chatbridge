@@ -265,6 +265,14 @@ export function createChessAppSrcDoc() {
         wp: '♙', wr: '♖', wn: '♘', wb: '♗', wq: '♕', wk: '♔',
         bp: '♟', br: '♜', bn: '♞', bb: '♝', bq: '♛', bk: '♚'
       };
+      const PIECE_VALUES = {
+        p: 1,
+        n: 3,
+        b: 3,
+        r: 5,
+        q: 9,
+        k: 100
+      };
 
       let game = new Chess();
       let activeSessionId = null;
@@ -301,7 +309,7 @@ export function createChessAppSrcDoc() {
           : game.inCheck()
             ? 'Check.'
             : 'In progress.';
-        return 'Moves: ' + history.length + '. Turn: ' + currentTurnColor() + '. Recent moves: ' + (history.slice(-4).join(', ') || 'none') + '. ' + suffix;
+        return 'Mode: human as white vs computer as black. Moves: ' + history.length + '. Turn: ' + currentTurnColor() + '. Recent moves: ' + (history.slice(-4).join(', ') || 'none') + '. ' + suffix;
       }
 
       function setHint(message) {
@@ -316,6 +324,47 @@ export function createChessAppSrcDoc() {
       function clearError() {
         errorEl.textContent = '';
         errorEl.classList.remove('visible');
+      }
+
+      function scoreComputerMove(move) {
+        let score = 0;
+        if (move.captured) {
+          score += (PIECE_VALUES[move.captured] || 0) * 10;
+        }
+        if (move.promotion) {
+          score += (PIECE_VALUES[move.promotion] || 0) * 10;
+        }
+        if (move.san && move.san.includes('+')) {
+          score += 3;
+        }
+        if (move.san && move.san.includes('#')) {
+          score += 1000;
+        }
+        if (move.to === 'd4' || move.to === 'e4' || move.to === 'd5' || move.to === 'e5') {
+          score += 1;
+        }
+        return score;
+      }
+
+      function chooseComputerMove() {
+        const moves = game.moves({ verbose: true });
+        if (!moves.length) {
+          return null;
+        }
+
+        let bestMove = moves[0];
+        let bestScore = scoreComputerMove(bestMove);
+
+        for (let i = 1; i < moves.length; i++) {
+          const move = moves[i];
+          const score = scoreComputerMove(move);
+          if (score > bestScore) {
+            bestMove = move;
+            bestScore = score;
+          }
+        }
+
+        return bestMove;
       }
 
       function post(type, payload) {
@@ -439,6 +488,15 @@ export function createChessAppSrcDoc() {
       function handleSuccessfulMove(moveResult, meta) {
         clearError();
         resetSelection();
+        let computerMove = null;
+
+        if (!game.isGameOver() && game.turn() === 'b') {
+          const chosenMove = chooseComputerMove();
+          if (chosenMove) {
+            computerMove = game.move(chosenMove);
+          }
+        }
+
         render();
         postStateUpdate(meta.seq);
 
@@ -450,11 +508,29 @@ export function createChessAppSrcDoc() {
               accepted: true,
               move: moveResult.san,
               lan: moveResult.lan,
+              computerMove: computerMove
+                ? {
+                    move: computerMove.san,
+                    lan: computerMove.lan
+                  }
+                : null,
               pgn: game.pgn(),
               fen: game.fen(),
               stateSummary: summarizeBoard()
             }
           });
+        }
+
+        if (computerMove) {
+          setHint(
+            'You played <code>' +
+              moveResult.san +
+              '</code>. Computer replied with <code>' +
+              computerMove.san +
+              '</code>. Your move.'
+          );
+        } else if (!game.isGameOver()) {
+          setHint('Your move. Click a piece to see legal targets, or type a move like <code>e4</code> or <code>Nf3</code>.');
         }
 
         maybePostComplete(meta.seq);
@@ -539,7 +615,7 @@ export function createChessAppSrcDoc() {
         resetSelection();
         manualSeq = 1000;
         clearError();
-        setHint('Click a piece to see legal targets, or type a move like <code>e4</code>, <code>Nf3</code>, or <code>e2e4</code>.');
+        setHint('You are White. Click a piece to see legal targets, or type a move like <code>e4</code>, <code>Nf3</code>, or <code>e2e4</code>. The computer will reply as Black.');
         render();
       }
 
@@ -580,6 +656,8 @@ export function createChessAppSrcDoc() {
               toolName: event.toolName,
               result: {
                 accepted: true,
+                playerColor: 'white',
+                opponent: 'computer',
                 pgn: game.pgn(),
                 fen: game.fen(),
                 stateSummary: summarizeBoard()

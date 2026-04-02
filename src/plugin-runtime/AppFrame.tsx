@@ -42,6 +42,7 @@ export default function AppFrame(props: AppFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const timeoutRef = useRef<number | null>(null)
   const initRetryRef = useRef<number | null>(null)
+  const initAckRef = useRef(false)
   const [frameWindow, setFrameWindow] = useState<Window | null>(null)
   const [status, setStatus] = useState<FrameStatus>('loading')
   const [error, setError] = useState<string>()
@@ -87,23 +88,31 @@ export default function AppFrame(props: AppFrameProps) {
         setStatus('loading')
         setError(undefined)
       }
+      initAckRef.current = false
       const initEvent = {
         type: 'INIT_APP' as const,
         sessionId,
         config: initConfig || {},
       }
       sendToApp(iframeRef.current, initEvent)
-      if (useLoadReady) {
-        return
-      }
       clearReadyTimeout()
       initRetryRef.current = window.setInterval(() => {
+        if (initAckRef.current) {
+          clearReadyTimeout()
+          return
+        }
         try {
           sendToApp(iframeRef.current, initEvent)
         } catch {
           // Ignore transient iframe readiness races while the child app boots.
         }
       }, INIT_RETRY_MS)
+      if (useLoadReady) {
+        timeoutRef.current = window.setTimeout(() => {
+          clearReadyTimeout()
+        }, 2_000)
+        return
+      }
       timeoutRef.current = window.setTimeout(() => {
         reportError('App did not become ready within 10 seconds')
       }, FRAME_TIMEOUT_MS)
@@ -122,11 +131,16 @@ export default function AppFrame(props: AppFrameProps) {
       (event) => {
         switch (event.type) {
           case 'APP_READY':
+            initAckRef.current = true
             clearReadyTimeout()
             setStatus('ready')
             setError(undefined)
             markAppFrameStatus(sessionId, 'ready')
             onReady?.()
+            break
+          case 'APP_STATE_UPDATE':
+            initAckRef.current = true
+            clearReadyTimeout()
             break
           case 'APP_ERROR':
             reportError(event.error)
@@ -172,6 +186,7 @@ export default function AppFrame(props: AppFrameProps) {
     const nextWindow = iframe?.contentWindow || null
     registerAppFrame(sessionId, iframe || null)
     setFrameWindow(nextWindow)
+    initAckRef.current = false
     if (useLoadReady) {
       clearReadyTimeout()
       setStatus('ready')
