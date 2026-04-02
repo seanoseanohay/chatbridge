@@ -1,5 +1,21 @@
 import { z } from 'zod'
-import type { AppManifest } from '../src/plugin-runtime/types.ts'
+
+type ToolDefinition = {
+  name: string
+  description: string
+  parameters: Record<string, unknown>
+  returns: Record<string, unknown>
+}
+
+type AppManifest = {
+  id: string
+  name: string
+  version: string
+  origin: string
+  tools: ToolDefinition[]
+  requiresAuth: boolean
+  authProvider?: string
+}
 
 const ToolDefinitionSchema = z.object({
   name: z.string().min(1),

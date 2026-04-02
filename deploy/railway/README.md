@@ -34,6 +34,7 @@ Required variables:
 
 - Root directory: `/server`
 - Config file path: `/server/railway.json`
+- Service variable: `RAILWAY_DOCKERFILE_PATH=server/Dockerfile`
 
 Required variables:
 

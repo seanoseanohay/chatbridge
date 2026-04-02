@@ -62,4 +62,15 @@ describe('plugin registry', () => {
     expect(resolveToolToApp('weather_get')?.appId).toBe('weather-v1')
     expect(getAppManifest('weather-v1')?.name).toBe('Weather')
   })
+
+  it('keeps built-in apps available when the backend is unreachable', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockRejectedValue(new Error('connect ECONNREFUSED'))
+
+    const result = await fetchRegistry(fetchMock)
+
+    expect(result.status).toBe('unavailable')
+    expect(result.error).toContain('ECONNREFUSED')
+    expect(resolveToolToApp('chess_start')?.appId).toBe('chess-v1')
+    expect(resolveToolToApp('weather_get')?.appId).toBe('weather-v1')
+  })
 })
