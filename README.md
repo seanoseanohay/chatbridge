@@ -72,6 +72,35 @@ For more information: [chatboxai.app](https://chatboxai.app/)
 
 ## Quick Start
 
+## ChatBridge Deployment
+
+This fork adds the ChatBridge app runtime on top of Chatbox.
+
+- Hosted frontend: `https://frontend-production-062e.up.railway.app`
+- Hosted backend: `https://backend-production-8727.up.railway.app`
+- ChatBridge login: `Settings -> ChatBridge`
+- Direct login route: `https://frontend-production-062e.up.railway.app/settings/chatbridge`
+
+### Local Web Dev
+
+Use the supported toolchain first:
+
+- Node `22.x`
+- pnpm `10.x`
+
+Then run:
+
+```bash
+export PATH="/opt/homebrew/opt/node@22/bin:/opt/homebrew/Cellar/pnpm/10.33.0/bin:$PATH"
+PLUGIN_BACKEND_URL=https://backend-production-8727.up.railway.app pnpm dev:web
+```
+
+If you want local backend development instead of Railway, set:
+
+```bash
+PLUGIN_BACKEND_URL=http://localhost:4302
+```
+
 ### For End Users
 1. Download the appropriate installer for your platform from the [releases page](https://github.com/chatboxai/chatbox/releases)
 2. Install and launch Chatbox
