@@ -19,6 +19,7 @@ export interface AppFrameProps {
 }
 
 const FRAME_TIMEOUT_MS = 10_000
+const INIT_RETRY_MS = 300
 
 const frameStyle: CSSProperties = {
   width: '100%',
@@ -40,6 +41,7 @@ export default function AppFrame(props: AppFrameProps) {
   const { appId, sessionId, src, origin, srcDoc, initConfig, completed, onError, onReady } = props
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const timeoutRef = useRef<number | null>(null)
+  const initRetryRef = useRef<number | null>(null)
   const [frameWindow, setFrameWindow] = useState<Window | null>(null)
   const [status, setStatus] = useState<FrameStatus>('loading')
   const [error, setError] = useState<string>()
@@ -55,6 +57,10 @@ export default function AppFrame(props: AppFrameProps) {
     if (timeoutRef.current !== null) {
       window.clearTimeout(timeoutRef.current)
       timeoutRef.current = null
+    }
+    if (initRetryRef.current !== null) {
+      window.clearInterval(initRetryRef.current)
+      initRetryRef.current = null
     }
   }, [])
 
@@ -78,12 +84,20 @@ export default function AppFrame(props: AppFrameProps) {
     try {
       setStatus('loading')
       setError(undefined)
-      sendToApp(iframeRef.current, {
-        type: 'INIT_APP',
+      const initEvent = {
+        type: 'INIT_APP' as const,
         sessionId,
         config: initConfig || {},
-      })
+      }
+      sendToApp(iframeRef.current, initEvent)
       clearReadyTimeout()
+      initRetryRef.current = window.setInterval(() => {
+        try {
+          sendToApp(iframeRef.current, initEvent)
+        } catch {
+          // Ignore transient iframe readiness races while the child app boots.
+        }
+      }, INIT_RETRY_MS)
       timeoutRef.current = window.setTimeout(() => {
         reportError('App did not become ready within 10 seconds')
       }, FRAME_TIMEOUT_MS)
