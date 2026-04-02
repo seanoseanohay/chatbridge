@@ -1,6 +1,7 @@
 import { getDefaultStore } from 'jotai'
 import { tool, type ToolExecutionOptions, type ToolSet } from 'ai'
 import { z } from 'zod'
+import { createChessAppSrcDoc } from '../apps/chess/srcdoc'
 import { activeAppSessionAtom, pluginFramesAtom } from '../renderer/stores/atoms/uiAtoms'
 import { getPluginAuthToken } from './auth'
 import type { ActiveAppSessionRef, PluginFrameEntry } from './atoms'
@@ -73,12 +74,11 @@ function setActiveSession(session: ActiveAppSessionRef | null) {
 }
 
 function getLocalAppSource(appId: string) {
-  const embeddedBase = `${window.location.origin}/embedded-chess.html`
-
   if (appId === 'chess-v1') {
     return {
-      src: embeddedBase,
-      origin: window.location.origin,
+      src: 'about:blank',
+      srcDoc: createChessAppSrcDoc(),
+      origin: 'null',
     }
   }
   return {

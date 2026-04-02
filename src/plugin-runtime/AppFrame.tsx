@@ -52,6 +52,7 @@ export default function AppFrame(props: AppFrameProps) {
     }
     return getOrigin(src) === origin
   }, [origin, src, srcDoc])
+  const useLoadReady = appId === 'chess-v1'
 
   const clearReadyTimeout = useCallback(() => {
     if (timeoutRef.current !== null) {
@@ -82,14 +83,19 @@ export default function AppFrame(props: AppFrameProps) {
     }
 
     try {
-      setStatus('loading')
-      setError(undefined)
+      if (!useLoadReady) {
+        setStatus('loading')
+        setError(undefined)
+      }
       const initEvent = {
         type: 'INIT_APP' as const,
         sessionId,
         config: initConfig || {},
       }
       sendToApp(iframeRef.current, initEvent)
+      if (useLoadReady) {
+        return
+      }
       clearReadyTimeout()
       initRetryRef.current = window.setInterval(() => {
         try {
@@ -104,7 +110,7 @@ export default function AppFrame(props: AppFrameProps) {
     } catch (initError) {
       reportError(initError instanceof Error ? initError.message : String(initError))
     }
-  }, [appId, clearReadyTimeout, initConfig, originMatches, reportError, sessionId])
+  }, [appId, clearReadyTimeout, initConfig, originMatches, reportError, sessionId, useLoadReady])
 
   useEffect(() => {
     if (!frameWindow) {
@@ -139,6 +145,14 @@ export default function AppFrame(props: AppFrameProps) {
   }, [clearReadyTimeout, frameWindow, onReady, reportError, sessionId])
 
   useEffect(() => {
+    if (!frameWindow) {
+      return
+    }
+
+    sendInit()
+  }, [frameWindow, sendInit])
+
+  useEffect(() => {
     return () => {
       clearReadyTimeout()
       registerAppFrame(sessionId, null)
@@ -158,10 +172,14 @@ export default function AppFrame(props: AppFrameProps) {
     const nextWindow = iframe?.contentWindow || null
     registerAppFrame(sessionId, iframe || null)
     setFrameWindow(nextWindow)
-    if (nextWindow) {
-      sendInit()
+    if (useLoadReady) {
+      clearReadyTimeout()
+      setStatus('ready')
+      setError(undefined)
+      markAppFrameStatus(sessionId, 'ready')
+      onReady?.()
     }
-  }, [sendInit, sessionId])
+  }, [clearReadyTimeout, onReady, sessionId, useLoadReady])
 
   return (
     <Stack gap="xs" className="rounded-2xl border border-solid border-chatbox-border-primary bg-chatbox-background-secondary p-3">

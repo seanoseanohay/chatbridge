@@ -1,5 +1,4 @@
 import { Alert, Badge, Group, Paper, Stack, Text, Title } from '@mantine/core'
-import { Chessboard } from 'react-chessboard'
 import { type CSSProperties, useEffect, useMemo, useState } from 'react'
 import { Chess, type Move } from 'chess.js'
 import { parsePlatformToAppEvent, type AppResult } from '../../plugin-runtime/types'
@@ -10,6 +9,24 @@ type AppState = {
   error: string | null
   selectedSquare: string | null
   legalTargets: Move[]
+}
+
+const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const
+const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'] as const
+
+const PIECE_GLYPHS: Record<string, string> = {
+  wp: '♙',
+  wn: '♘',
+  wb: '♗',
+  wr: '♖',
+  wq: '♕',
+  wk: '♔',
+  bp: '♟',
+  bn: '♞',
+  bb: '♝',
+  br: '♜',
+  bq: '♛',
+  bk: '♚',
 }
 
 function summarizeBoard(game: Chess) {
@@ -38,6 +55,18 @@ function postToParent(payload: Record<string, unknown>) {
   window.parent.postMessage(payload, '*')
 }
 
+function getSquareName(fileIndex: number, rankIndex: number) {
+  return `${FILES[fileIndex]}${RANKS[rankIndex]}`
+}
+
+function getPieceGlyph(game: Chess, square: string) {
+  const piece = game.get(square)
+  if (!piece) {
+    return null
+  }
+  return PIECE_GLYPHS[`${piece.color}${piece.type}`]
+}
+
 export default function EmbeddedChessApp() {
   const [state, setState] = useState<AppState>({
     game: new Chess(),
@@ -56,6 +85,8 @@ export default function EmbeddedChessApp() {
     }
     return rows
   }, [state.game])
+
+  const legalTargetSquares = useMemo(() => new Set(state.legalTargets.map((move) => move.to)), [state.legalTargets])
 
   useEffect(() => {
     const onMessage = (rawEvent: MessageEvent) => {
@@ -281,28 +312,100 @@ export default function EmbeddedChessApp() {
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
           <Paper radius="xl" p="md" bg="rgba(255,255,255,0.48)" style={{ border: '1px solid rgba(124, 97, 65, 0.16)' }}>
-            <Chessboard
+            <div
               id="chatbridge-chessboard"
-              position={state.game.fen()}
-              arePiecesDraggable
-              onPieceDrop={(sourceSquare, targetSquare) => applyInteractiveMove(sourceSquare, targetSquare)}
-              onSquareClick={onSquareClick}
-              boardOrientation="white"
-              customDarkSquareStyle={{ backgroundColor: '#9a6231' }}
-              customLightSquareStyle={{ backgroundColor: '#f1dfb7' }}
-              customBoardStyle={{ borderRadius: '16px', boxShadow: '0 18px 30px rgba(93,61,26,0.16)' }}
-              customSquareStyles={Object.fromEntries(
-                [
-                  ...(state.selectedSquare ? [[state.selectedSquare, { boxShadow: 'inset 0 0 0 4px rgba(39,110,241,0.78)' }]] : []),
-                  ...state.legalTargets.map((move) => [
-                    move.to,
-                    move.captured
-                      ? { boxShadow: 'inset 0 0 0 4px rgba(192,40,40,0.55)' }
-                      : { background: 'radial-gradient(circle, rgba(39,110,241,0.32) 0 22%, transparent 23%)' },
-                  ]),
-                ].filter(Boolean) as Array<[string, CSSProperties]>
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'auto repeat(8, minmax(0, 1fr))',
+                gridTemplateRows: 'repeat(8, minmax(0, 1fr)) auto',
+                gap: 0,
+                borderRadius: 16,
+                overflow: 'hidden',
+                boxShadow: '0 18px 30px rgba(93,61,26,0.16)',
+                border: '1px solid rgba(93,61,26,0.18)',
+                aspectRatio: '1 / 1',
+                userSelect: 'none',
+              }}
+            >
+              {RANKS.map((rank, rankIndex) => (
+                <Text
+                  key={`rank-${rank}`}
+                  size="sm"
+                  fw={700}
+                  c="#6b5337"
+                  style={{
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: '#e5d4b9',
+                    borderBottom: rankIndex === RANKS.length - 1 ? '1px solid rgba(93,61,26,0.12)' : undefined,
+                  }}
+                >
+                  {rank}
+                </Text>
+              ))}
+              {RANKS.flatMap((rank, rankIndex) =>
+                FILES.map((file, fileIndex) => {
+                  const square = getSquareName(fileIndex, rankIndex)
+                  const glyph = getPieceGlyph(state.game, square)
+                  const isDark = (fileIndex + rankIndex) % 2 === 1
+                  const isSelected = state.selectedSquare === square
+                  const isTarget = legalTargetSquares.has(square)
+                  const piece = state.game.get(square)
+                  const isCaptureTarget = isTarget && !!piece
+
+                  let background = isDark ? '#9a6231' : '#f1dfb7'
+                  if (isSelected) {
+                    background = '#6f95f4'
+                  } else if (isCaptureTarget) {
+                    background = '#d97070'
+                  } else if (isTarget) {
+                    background = isDark ? '#b07f53' : '#dfe8ff'
+                  }
+
+                  return (
+                    <button
+                      key={square}
+                      type="button"
+                      aria-label={`square ${square}`}
+                      onClick={() => onSquareClick(square)}
+                      style={{
+                        appearance: 'none',
+                        border: 0,
+                        margin: 0,
+                        padding: 0,
+                        background,
+                        color: glyph && piece?.color === 'w' ? '#fffaf0' : '#1f1711',
+                        cursor: 'pointer',
+                        display: 'grid',
+                        placeItems: 'center',
+                        fontSize: 'clamp(26px, 3vw, 46px)',
+                        lineHeight: 1,
+                        textShadow: glyph && piece?.color === 'w' ? '0 1px 1px rgba(0,0,0,0.35)' : '0 1px 0 rgba(255,255,255,0.28)',
+                        transition: 'background 120ms ease, transform 120ms ease',
+                      }}
+                    >
+                      <span style={{ transform: glyph ? 'translateY(-2px)' : 'none' }}>{glyph}</span>
+                    </button>
+                  )
+                })
               )}
-            />
+              <div style={{ background: '#e5d4b9' }} />
+              {FILES.map((file) => (
+                <Text
+                  key={`file-${file}`}
+                  size="sm"
+                  fw={700}
+                  c="#6b5337"
+                  style={{
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: '#e5d4b9',
+                  }}
+                >
+                  {file}
+                </Text>
+              ))}
+            </div>
           </Paper>
           <Paper radius="xl" p="md" bg="rgba(255,255,255,0.56)" style={{ border: '1px solid rgba(124, 97, 65, 0.12)' }}>
             <Text size="11px" fw={800} tt="uppercase" c="#7f6849" style={{ letterSpacing: '0.18em' }}>

@@ -97,9 +97,6 @@ importers:
       officeparser:
         specifier: 5.0.0
         version: 5.0.0
-      react-chessboard:
-        specifier: ^5.10.0
-        version: 5.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       sanitize-filename:
         specifier: ^1.6.3
         version: 1.6.3
@@ -11200,13 +11197,6 @@ packages:
     peerDependencies:
       react: ^0.14.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^0.14.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  react-chessboard@5.10.0:
-    resolution: {integrity: sha512-Y3PgaCVhnDG3IaQfu86OzTSEIEAUtuU5XwmHWnx3tcFOX7lSoAq81ZFX3MBj6y5a6FzDMTczMVmkkrV2CzTrIw==}
-    engines: {node: '>=20.11.0', pnpm: '>=9.4.0'}
-    peerDependencies:
-      react: ^19.0.0
-      react-dom: ^19.0.0
 
   react-colorful@5.6.1:
     resolution: {integrity: sha512-1exovf0uGTGyq5mXQT0zgQ80uvj2PCwvF8zY1RN9/vbJVSjSo3fsB/4L3ObbF7u70NduSiK4xu4Y6q1MHoUGEw==}
@@ -26259,13 +26249,6 @@ snapshots:
 
   react-avatar-editor@14.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-
-  react-chessboard@5.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
-    dependencies:
-      '@dnd-kit/core': 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@dnd-kit/modifiers': 9.0.0(@dnd-kit/core@6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 

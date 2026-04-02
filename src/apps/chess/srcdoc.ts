@@ -1,5 +1,15 @@
 import chessJsSource from 'chess.js/dist/esm/chess.js?raw'
 
+const chessScriptExportIndex = chessJsSource.lastIndexOf('export {')
+const chessBrowserSource =
+  chessScriptExportIndex >= 0
+    ? `${chessJsSource.slice(0, chessScriptExportIndex)}
+window.Chess = Chess;
+`
+    : `${chessJsSource}
+window.Chess = Chess;
+`
+
 export function createChessAppSrcDoc() {
   return `<!DOCTYPE html>
 <html>
@@ -235,9 +245,11 @@ export function createChessAppSrcDoc() {
         <div class="error" id="error"></div>
       </div>
     </div>
-    <script type="module">
-      ${chessJsSource}
-
+    <script>
+      ${chessBrowserSource}
+    </script>
+    <script>
+      const Chess = window.Chess;
       const PIECES = {
         wp: '♙', wr: '♖', wn: '♘', wb: '♗', wq: '♕', wk: '♔',
         bp: '♟', br: '♜', bn: '♞', bb: '♝', bq: '♛', bk: '♚'
