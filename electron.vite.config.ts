@@ -260,6 +260,10 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 1212,
         strictPort: true,
+        cors: true,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+        },
       },
       define: {
         'process.type': '"renderer"',
