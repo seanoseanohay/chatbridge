@@ -176,6 +176,18 @@ export function createChessAppSrcDoc() {
         line-height: 1;
         text-shadow: 0 1px 0 rgba(255,255,255,0.28), 0 2px 10px rgba(0,0,0,0.14);
       }
+      .piece.white {
+        color: #fff8ec;
+        text-shadow:
+          0 1px 0 rgba(76, 49, 16, 0.42),
+          0 2px 10px rgba(0,0,0,0.18);
+      }
+      .piece.black {
+        color: #1f1710;
+        text-shadow:
+          0 1px 0 rgba(255,255,255,0.12),
+          0 2px 10px rgba(0,0,0,0.12);
+      }
       .coord {
         position: absolute;
         font-size: 10px;
@@ -376,7 +388,7 @@ export function createChessAppSrcDoc() {
             square.dataset.square = squareName;
             square.setAttribute('aria-label', 'Square ' + squareName);
             square.innerHTML =
-              '<span class="piece">' +
+              '<span class="piece ' + (piece ? (piece.color === 'w' ? 'white' : 'black') : '') + '">' +
               pieceSymbol(piece) +
               '</span>' +
               (rank === 7 ? '<span class="coord coord-file">' + squareName[0] + '</span>' : '') +
