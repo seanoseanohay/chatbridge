@@ -8,12 +8,12 @@ const ARTIFACT_DIR = path.resolve(__dirname, '../test-results/hosted-smoke')
 async function sendPrompt(page, prompt) {
   const input = page.locator('#message-input')
   await input.click()
-  await input.fill(prompt)
-  await input.press('Enter')
+  await input.type(prompt)
+  await page.keyboard.press('Enter')
 }
 
 async function expectVisible(page, text, timeout = 20000) {
-  await page.getByText(text, { exact: false }).waitFor({ state: 'visible', timeout })
+  await page.getByText(text, { exact: true }).waitFor({ state: 'visible', timeout })
 }
 
 async function runCase(page, name, prompt, expectedTexts) {
