@@ -226,7 +226,6 @@ export function createWeatherAppSrcDoc() {
     <script>
       const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       let sessionId = '';
-      let latestSeq = 0;
       let backendUrl = '';
 
       function escapeHtml(value) {
@@ -354,8 +353,7 @@ export function createWeatherAppSrcDoc() {
         return await response.json();
       }
 
-      async function lookupWeather(location, toolName) {
-        const seq = ++latestSeq;
+      async function lookupWeather(location, toolName, seq) {
         subtitleEl.textContent = location;
         if (!backendUrl) {
           const message = 'Weather service is not configured.';
@@ -472,7 +470,7 @@ export function createWeatherAppSrcDoc() {
             });
             return;
           }
-          await lookupWeather(location, 'weather_get');
+          await lookupWeather(location, 'weather_get', event.seq);
         }
       });
     </script>
