@@ -3,6 +3,7 @@ import { tool, type ToolExecutionOptions, type ToolSet } from 'ai'
 import { z } from 'zod'
 import { createChessAppSrcDoc } from '../apps/chess/srcdoc'
 import { createWeatherAppSrcDoc } from '../apps/weather/srcdoc'
+import { createSpotifyAppSrcDoc } from '../apps/spotify/srcdoc'
 import { activeAppSessionAtom, pluginFramesAtom } from '../renderer/stores/atoms/uiAtoms'
 import { getPluginAuthToken } from './auth'
 import type { ActiveAppSessionRef, PluginFrameEntry } from './atoms'
@@ -42,7 +43,7 @@ function isLocalSessionId(sessionId: string) {
 }
 
 function supportsLocalRuntime(appId: string) {
-  return appId === 'chess-v1' || appId === 'weather-v1'
+  return appId === 'chess-v1' || appId === 'weather-v1' || appId === 'spotify-v1'
 }
 
 function getAuthHeaders(): HeadersInit {
@@ -102,6 +103,13 @@ function getLocalAppSource(appId: string) {
       origin: 'null',
     }
   }
+  if (appId === 'spotify-v1') {
+    return {
+      src: 'about:blank',
+      srcDoc: createSpotifyAppSrcDoc(),
+      origin: 'null',
+    }
+  }
   return {
     src: 'about:blank',
     srcDoc: '<!DOCTYPE html><html><body>App unavailable.</body></html>',
@@ -113,6 +121,12 @@ function getLocalRuntimeConfig(appId: string) {
   if (appId === 'weather-v1') {
     return {
       backendUrl: getPluginBackendUrl(),
+    }
+  }
+  if (appId === 'spotify-v1') {
+    return {
+      backendUrl: getPluginBackendUrl(),
+      authToken: getPluginAuthToken(),
     }
   }
   return {}
@@ -568,7 +582,9 @@ export async function invokePluginTool(
       ? await ensureRuntimeSession(options.appId, options.conversationId, options.toolCallId)
       : toolName === 'weather_get'
         ? await ensureRuntimeSession(options.appId, options.conversationId, options.toolCallId)
-        : getRuntimeSessionByTool(toolName)
+        : toolName === 'spotify_open'
+          ? await ensureRuntimeSession(options.appId, options.conversationId, options.toolCallId)
+          : getRuntimeSessionByTool(toolName)
 
   if (!runtimeSession) {
     throw new Error(`No active plugin session found for tool "${toolName}"`)
@@ -589,6 +605,15 @@ export async function invokePluginTool(
       sessionId: runtimeSession.session.id,
       accepted: true,
       stateSummary: runtimeSession.session.stateSummary || 'Chess board initialized.',
+    }
+    void logInvocation(runtimeSession.session.id, toolName, params, result, 'success', 0)
+    return result
+  }
+
+  if (toolName === 'spotify_open') {
+    const result = {
+      sessionId: runtimeSession.session.id,
+      connected: false,
     }
     void logInvocation(runtimeSession.session.id, toolName, params, result, 'success', 0)
     return result
