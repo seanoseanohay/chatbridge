@@ -11,6 +11,8 @@ echo "Checking ChatBridge settings route: ${FRONTEND_URL}/settings/chatbridge"
 curl -I -sS "${FRONTEND_URL}/settings/chatbridge" >/dev/null
 
 echo "Checking backend health: ${BACKEND_URL}/healthz"
-curl -fsS "${BACKEND_URL}/healthz" >/dev/null
+health_json="$(curl -fsS "${BACKEND_URL}/healthz")"
+echo "${health_json}" | grep -q '"ok":true'
+echo "${health_json}" | grep -q '"service":"chatbridge-server"'
 
 echo "Railway audit passed"

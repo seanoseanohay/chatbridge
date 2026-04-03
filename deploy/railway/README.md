@@ -34,7 +34,8 @@ Required variables:
 
 - Root directory: `/server`
 - Config file path: `/server/railway.json`
-- Service variable: `RAILWAY_DOCKERFILE_PATH=server/Dockerfile`
+- Deploy from the repo root with: `railway up server --path-as-root --service backend`
+- Do not point the backend service at the repo-root [`/railway.json`](/Users/lawrencekeener/Desktop/gauntlet/labs/week7/chatbridge/railway.json); that file is frontend-only
 
 Required variables:
 
@@ -54,4 +55,4 @@ The audit checks:
 
 - frontend root URL returns `200`
 - frontend ChatBridge login route returns `200`
-- backend health route returns `200`
+- backend health route returns JSON from `chatbridge-server`
