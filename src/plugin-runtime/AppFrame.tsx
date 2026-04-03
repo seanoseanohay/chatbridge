@@ -54,7 +54,16 @@ export default function AppFrame(props: AppFrameProps) {
     }
     return getOrigin(src) === origin
   }, [origin, src, srcDoc])
-  const useLoadReady = appId === 'chess-v1'
+  const useLoadReady = Boolean(srcDoc)
+
+  const buildInitEvent = useCallback(
+    () => ({
+      type: 'INIT_APP' as const,
+      sessionId,
+      config: initConfig || {},
+    }),
+    [initConfig, sessionId]
+  )
 
   const clearReadyTimeout = useCallback(() => {
     if (timeoutRef.current !== null) {
@@ -90,11 +99,7 @@ export default function AppFrame(props: AppFrameProps) {
         setError(undefined)
       }
       initAckRef.current = false
-      const initEvent = {
-        type: 'INIT_APP' as const,
-        sessionId,
-        config: initConfig || {},
-      }
+      const initEvent = buildInitEvent()
       sendToApp(iframeRef.current, initEvent)
       clearReadyTimeout()
       initRetryRef.current = window.setInterval(() => {
@@ -120,7 +125,7 @@ export default function AppFrame(props: AppFrameProps) {
     } catch (initError) {
       reportError(initError instanceof Error ? initError.message : String(initError))
     }
-  }, [appId, clearReadyTimeout, initConfig, originMatches, reportError, sessionId, useLoadReady])
+  }, [appId, buildInitEvent, clearReadyTimeout, originMatches, reportError, sessionId, useLoadReady])
 
   useEffect(() => {
     if (!frameWindow) {
@@ -189,13 +194,20 @@ export default function AppFrame(props: AppFrameProps) {
     setFrameWindow(nextWindow)
     initAckRef.current = false
     if (useLoadReady) {
+      try {
+        sendToApp(iframe, buildInitEvent())
+        initAckRef.current = true
+      } catch (error) {
+        reportError(error instanceof Error ? error.message : String(error))
+        return
+      }
       clearReadyTimeout()
       setStatus('ready')
       setError(undefined)
       markAppFrameStatus(sessionId, 'ready')
       onReady?.()
     }
-  }, [clearReadyTimeout, onReady, sessionId, useLoadReady])
+  }, [buildInitEvent, clearReadyTimeout, onReady, reportError, sessionId, useLoadReady])
 
   return (
     <Stack gap="xs" className="rounded-2xl border border-solid border-chatbox-border-primary bg-chatbox-background-secondary p-3">
