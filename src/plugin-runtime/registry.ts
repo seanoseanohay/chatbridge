@@ -91,9 +91,11 @@ export interface RegistryLoadResult {
   error?: string
 }
 
-let registryCache: PluginRegistryEntry[] = []
-let registryByAppId = new Map<string, PluginRegistryEntry>()
-let toolToAppId = new Map<string, string>()
+let registryCache: PluginRegistryEntry[] = mergeBuiltinApps([])
+let registryByAppId = new Map(registryCache.map((entry) => [entry.appId, entry]))
+let toolToAppId = new Map(
+  registryCache.flatMap((entry) => entry.manifest.tools.map((tool) => [tool.name, entry.appId] as const))
+)
 
 function mergeBuiltinApps(apps: PluginRegistryEntry[]) {
   const merged = new Map<string, PluginRegistryEntry>(BUILTIN_ENTRIES.map((entry) => [entry.appId, entry]))
@@ -178,7 +180,5 @@ export function getAppManifest(appId: string): AppManifest | null {
 }
 
 export function __resetRegistryForTests() {
-  registryCache = []
-  registryByAppId = new Map()
-  toolToAppId = new Map()
+  rebuildIndexes([])
 }
