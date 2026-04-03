@@ -6,6 +6,7 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
   JWT_SECRET: z.string().min(32),
+  OPENWEATHER_API_KEY: z.string().default(''),
   SPOTIFY_CLIENT_ID: z.string().default(''),
   SPOTIFY_CLIENT_SECRET: z.string().default(''),
   SPOTIFY_REDIRECT_URI: z.string().url().default('http://localhost:4302/api/oauth/spotify/callback'),

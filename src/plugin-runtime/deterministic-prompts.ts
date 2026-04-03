@@ -1,7 +1,6 @@
 export type DeterministicAppPrompt =
   | { app: 'chess' }
   | { app: 'weather'; location: string }
-  | { app: 'spotify'; prompt: string; trackCount?: number }
 
 export function shouldLaunchChessApp(text: string) {
   const normalized = text.toLowerCase()
@@ -43,42 +42,5 @@ export function getDeterministicAppPrompt(text: string): DeterministicAppPrompt 
     return { app: 'weather', location }
   }
 
-  const spotifyPrompt = extractSpotifyPrompt(text)
-  if (spotifyPrompt) {
-    return spotifyPrompt
-  }
-
   return null
-}
-
-export function extractSpotifyPrompt(text: string): DeterministicAppPrompt | null {
-  const normalized = text.trim()
-  if (!normalized) {
-    return null
-  }
-
-  const lower = normalized.toLowerCase()
-  const mentionsSpotify = lower.includes('spotify')
-  const mentionsPlaylist =
-    lower.includes('playlist') &&
-    (lower.includes('make') ||
-      lower.includes('create') ||
-      lower.includes('build') ||
-      lower.includes('open') ||
-      lower.includes('connect') ||
-      lower.includes('login') ||
-      lower.includes('log in'))
-
-  if (!mentionsSpotify && !mentionsPlaylist) {
-    return null
-  }
-
-  const trackCountMatch = normalized.match(/(\d+)\s+(?:song|songs|track|tracks)\b/i)
-  const trackCount = trackCountMatch ? Number.parseInt(trackCountMatch[1], 10) : undefined
-
-  return {
-    app: 'spotify',
-    prompt: normalized,
-    ...(trackCount ? { trackCount } : {}),
-  }
 }
