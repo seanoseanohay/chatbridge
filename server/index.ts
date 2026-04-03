@@ -29,7 +29,13 @@ export function createServerApp() {
 
   app.get('/healthz', async (_request, response) => {
     await pgPool.query('select 1')
-    response.json({ ok: true })
+    response.json({ ok: true, service: 'chatbridge-server' })
+  })
+
+  app.get('/readyz', async (_request, response) => {
+    await pgPool.query('select 1')
+    await getRedisClient()
+    response.json({ ok: true, service: 'chatbridge-server', ready: true })
   })
 
   app.use('/api/auth', authRouter)
