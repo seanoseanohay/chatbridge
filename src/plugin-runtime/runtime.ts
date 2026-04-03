@@ -43,7 +43,7 @@ function isLocalSessionId(sessionId: string) {
 }
 
 function supportsLocalRuntime(appId: string) {
-  return appId === 'chess-v1' || appId === 'weather-v1'
+  return appId === 'chess-v1' || appId === 'weather-v1' || appId === 'spotify-v1'
 }
 
 function getAuthHeaders(): HeadersInit {
