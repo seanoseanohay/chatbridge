@@ -6,6 +6,7 @@ import { appsRouter } from './routes/apps'
 import { sessionsRouter } from './routes/sessions'
 import { invocationsRouter } from './routes/invocations'
 import { oauthRouter } from './routes/oauth'
+import { weatherRouter } from './routes/weather'
 import { env } from './config'
 
 export function createServerApp() {
@@ -43,6 +44,7 @@ export function createServerApp() {
   app.use('/api/sessions', sessionsRouter)
   app.use('/api/sessions/:id/invocations', invocationsRouter)
   app.use('/api/oauth', oauthRouter)
+  app.use('/api/weather', weatherRouter)
 
   app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
     console.error('server:error', error)

@@ -112,7 +112,7 @@ function getLocalAppSource(appId: string) {
 function getLocalRuntimeConfig(appId: string) {
   if (appId === 'weather-v1') {
     return {
-      openWeatherApiKey: process.env.OPENWEATHER_API_KEY || '',
+      backendUrl: getPluginBackendUrl(),
     }
   }
   return {}

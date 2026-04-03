@@ -227,7 +227,7 @@ export function createWeatherAppSrcDoc() {
       const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       let sessionId = '';
       let latestSeq = 0;
-      let apiKey = '';
+      let backendUrl = '';
 
       function escapeHtml(value) {
         return String(value)
@@ -357,8 +357,8 @@ export function createWeatherAppSrcDoc() {
       async function lookupWeather(location, toolName) {
         const seq = ++latestSeq;
         subtitleEl.textContent = location;
-        if (!apiKey) {
-          const message = 'Weather API is not configured.';
+        if (!backendUrl) {
+          const message = 'Weather service is not configured.';
           showError(message);
           post('APP_ERROR', { error: message });
           post('APP_RESULT', {
@@ -372,50 +372,37 @@ export function createWeatherAppSrcDoc() {
         showLoading('Looking up ' + location + '...');
 
         try {
-          const geocode = await fetchJson(
-            'https://api.openweathermap.org/geo/1.0/direct?q=' +
-              encodeURIComponent(location) +
-              '&limit=1&appid=' +
-              encodeURIComponent(apiKey)
+          const result = await fetchJson(
+            backendUrl.replace(/\/$/, '') + '/api/weather?location=' + encodeURIComponent(location)
           );
-
-          if (!Array.isArray(geocode) || geocode.length === 0) {
-            const message = 'Location not found: ' + location;
-            showError(message);
-            post('APP_ERROR', { error: message });
-            post('APP_RESULT', {
-              seq,
-              toolName,
-              result: { error: 'location_not_found', location, message },
-            });
-            return;
-          }
-
-          const place = geocode[0];
-          const forecast = await fetchJson(
-            'https://api.openweathermap.org/data/2.5/forecast?lat=' +
-              encodeURIComponent(place.lat) +
-              '&lon=' +
-              encodeURIComponent(place.lon) +
-              '&units=imperial&appid=' +
-              encodeURIComponent(apiKey)
-          );
-
-          const current = forecast.list[0];
-          const nextDays = summarizeForecast(forecast.list);
-          const resolvedLocation = [place.name, place.state, place.country].filter(Boolean).join(', ');
           const summaryText =
-            resolvedLocation +
+            result.location +
             ': ' +
-            Math.round(current.main.temp) +
+            Math.round(result.temperatureF) +
             '°F and ' +
-            describeConditions(current);
+            result.description;
 
-          locationNameEl.textContent = resolvedLocation;
-          tempValueEl.textContent = Math.round(current.main.temp) + '°F';
-          summaryCopyEl.textContent = describeConditions(current);
-          renderMeta(current);
-          renderForecast(nextDays);
+          locationNameEl.textContent = result.location;
+          tempValueEl.textContent = Math.round(result.temperatureF) + '°F';
+          summaryCopyEl.textContent = result.description;
+          renderMeta({
+            main: {
+              temp: result.temperatureF,
+              feels_like: result.feelsLikeF,
+              humidity: result.humidity,
+            },
+            weather: [{ description: result.description }],
+            wind: { speed: result.windMph },
+          });
+          renderForecast(
+            Array.isArray(result.forecast)
+              ? result.forecast.map((item, index) => ({
+                  dt: Date.now() / 1000 + index * 86400,
+                  main: { temp: item.temperatureF },
+                  weather: [{ description: item.description }],
+                }))
+              : []
+          );
           loadingEl.hidden = true;
           errorPanelEl.classList.remove('visible');
           emptyStateEl.hidden = true;
@@ -428,21 +415,10 @@ export function createWeatherAppSrcDoc() {
             stateSummary:
               summaryText +
               '. Forecast: ' +
-              nextDays
-                .map((item) => DAYS[new Date(item.dt * 1000).getDay()] + ' ' + Math.round(item.main.temp) + '°F')
+              (Array.isArray(result.forecast) ? result.forecast : [])
+                .map((item) => item.day + ' ' + Math.round(item.temperatureF) + '°F')
                 .join(', '),
           });
-
-          const result = {
-            location: resolvedLocation,
-            temperatureF: Math.round(current.main.temp),
-            description: describeConditions(current),
-            forecast: nextDays.map((item) => ({
-              day: DAYS[new Date(item.dt * 1000).getDay()],
-              temperatureF: Math.round(item.main.temp),
-              description: describeConditions(item),
-            })),
-          };
 
           post('APP_RESULT', {
             seq,
@@ -476,7 +452,7 @@ export function createWeatherAppSrcDoc() {
 
         if (event.type === 'INIT_APP') {
           sessionId = event.sessionId;
-          apiKey = typeof event.config?.openWeatherApiKey === 'string' ? event.config.openWeatherApiKey : '';
+          backendUrl = typeof event.config?.backendUrl === 'string' ? event.config.backendUrl : '';
           post('APP_READY', {});
 
           subtitleEl.textContent = 'Waiting for a location...';
