@@ -348,10 +348,22 @@ export function createWeatherAppSrcDoc() {
 
       async function fetchJson(url) {
         const response = await fetch(url);
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch {}
         if (!response.ok) {
-          throw new Error('Weather request failed with status ' + response.status);
+          const message =
+            payload && typeof payload.message === 'string'
+              ? payload.message
+              : response.status === 404
+                ? 'Location not found'
+                : 'Weather request failed with status ' + response.status;
+          const error = new Error(message);
+          error.payload = payload;
+          throw error;
         }
-        return await response.json();
+        return payload;
       }
 
       async function lookupWeather(location, toolName, seq) {
@@ -441,7 +453,11 @@ export function createWeatherAppSrcDoc() {
           post('APP_RESULT', {
             seq,
             toolName,
-            result: { error: 'request_failed', location, message },
+            result: {
+              error: message.toLowerCase().includes('location not found') ? 'location_not_found' : 'request_failed',
+              location,
+              message,
+            },
           });
         }
       }

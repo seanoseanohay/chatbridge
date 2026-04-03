@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { env } from '../config'
 
 const WeatherQuerySchema = z.object({
   location: z.string().min(1),
@@ -8,44 +7,70 @@ const WeatherQuerySchema = z.object({
 
 type GeocodeEntry = {
   name: string
-  state?: string
-  country: string
-  lat: number
-  lon: number
+  admin1?: string
+  country?: string
+  country_code?: string
+  latitude: number
+  longitude: number
 }
 
-type ForecastEntry = {
-  dt: number
-  main: {
-    temp: number
-    feels_like: number
-    humidity: number
-  }
-  weather: Array<{
-    description: string
-  }>
-  wind: {
-    speed: number
-  }
+type GeocodeResponse = {
+  results?: GeocodeEntry[]
 }
 
 type ForecastResponse = {
-  list: ForecastEntry[]
-}
-
-function describeConditions(item: ForecastEntry) {
-  return item.weather?.[0]?.description || 'clear conditions'
-}
-
-function summarizeForecast(list: ForecastEntry[]) {
-  const daily = new Map<string, ForecastEntry>()
-  for (const item of list) {
-    const dateKey = new Date(item.dt * 1000).toISOString().slice(0, 10)
-    if (!daily.has(dateKey)) {
-      daily.set(dateKey, item)
-    }
+  current?: {
+    temperature_2m?: number
+    apparent_temperature?: number
+    relative_humidity_2m?: number
+    wind_speed_10m?: number
+    weather_code?: number
   }
-  return Array.from(daily.values()).slice(0, 5)
+  daily?: {
+    time?: string[]
+    weather_code?: number[]
+    temperature_2m_max?: number[]
+    temperature_2m_min?: number[]
+  }
+}
+
+function describeWeatherCode(code: number | undefined) {
+  const lookup: Record<number, string> = {
+    0: 'clear sky',
+    1: 'mainly clear',
+    2: 'partly cloudy',
+    3: 'overcast',
+    45: 'foggy',
+    48: 'depositing rime fog',
+    51: 'light drizzle',
+    53: 'drizzle',
+    55: 'dense drizzle',
+    56: 'light freezing drizzle',
+    57: 'freezing drizzle',
+    61: 'slight rain',
+    63: 'rain',
+    65: 'heavy rain',
+    66: 'light freezing rain',
+    67: 'freezing rain',
+    71: 'slight snow',
+    73: 'snow',
+    75: 'heavy snow',
+    77: 'snow grains',
+    80: 'rain showers',
+    81: 'heavy rain showers',
+    82: 'violent rain showers',
+    85: 'snow showers',
+    86: 'heavy snow showers',
+    95: 'thunderstorm',
+    96: 'thunderstorm with hail',
+    99: 'severe thunderstorm with hail',
+  }
+
+  return lookup[code ?? -1] || 'unavailable'
+}
+
+function toResolvedLocation(place: GeocodeEntry) {
+  return [place.name, place.admin1, place.country || place.country_code].filter(Boolean).join(', ')
 }
 
 async function fetchJson<T>(url: string) {
@@ -61,19 +86,15 @@ export const weatherRouter = Router()
 weatherRouter.get('/', async (request, response, next) => {
   try {
     const { location } = WeatherQuerySchema.parse(request.query)
-    if (!env.OPENWEATHER_API_KEY) {
-      response.status(503).json({ error: 'not_configured', message: 'Weather API is not configured.' })
-      return
-    }
 
-    const geocode = await fetchJson<GeocodeEntry[]>(
-      'https://api.openweathermap.org/geo/1.0/direct?q=' +
+    const geocode = await fetchJson<GeocodeResponse>(
+      'https://geocoding-api.open-meteo.com/v1/search?name=' +
         encodeURIComponent(location) +
-        '&limit=1&appid=' +
-        encodeURIComponent(env.OPENWEATHER_API_KEY)
+        '&count=1&language=en&format=json'
     )
 
-    if (!Array.isArray(geocode) || geocode.length === 0) {
+    const place = Array.isArray(geocode.results) ? geocode.results[0] : null
+    if (!place) {
       response.status(404).json({
         error: 'location_not_found',
         location,
@@ -82,31 +103,43 @@ weatherRouter.get('/', async (request, response, next) => {
       return
     }
 
-    const place = geocode[0]
     const forecast = await fetchJson<ForecastResponse>(
-      'https://api.openweathermap.org/data/2.5/forecast?lat=' +
-        encodeURIComponent(place.lat) +
-        '&lon=' +
-        encodeURIComponent(place.lon) +
-        '&units=imperial&appid=' +
-        encodeURIComponent(env.OPENWEATHER_API_KEY)
+      'https://api.open-meteo.com/v1/forecast?latitude=' +
+        encodeURIComponent(place.latitude) +
+        '&longitude=' +
+        encodeURIComponent(place.longitude) +
+        '&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code' +
+        '&daily=weather_code,temperature_2m_max,temperature_2m_min' +
+        '&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=5'
     )
 
-    const current = forecast.list[0]
-    const nextDays = summarizeForecast(forecast.list)
-    const resolvedLocation = [place.name, place.state, place.country].filter(Boolean).join(', ')
+    if (!forecast.current || !forecast.daily?.time?.length) {
+      response.status(502).json({
+        error: 'forecast_unavailable',
+        location,
+        message: `Forecast unavailable for ${location}`,
+      })
+      return
+    }
+
+    const resolvedLocation = toResolvedLocation(place)
+    const dayNames = forecast.daily.time
+    const dailyCodes = forecast.daily.weather_code || []
+    const dailyHighs = forecast.daily.temperature_2m_max || []
+    const dailyLows = forecast.daily.temperature_2m_min || []
 
     response.json({
       location: resolvedLocation,
-      temperatureF: Math.round(current.main.temp),
-      description: describeConditions(current),
-      feelsLikeF: Math.round(current.main.feels_like),
-      humidity: current.main.humidity,
-      windMph: Math.round(current.wind.speed),
-      forecast: nextDays.map((item) => ({
-        day: new Date(item.dt * 1000).toLocaleDateString('en-US', { weekday: 'short' }),
-        temperatureF: Math.round(item.main.temp),
-        description: describeConditions(item),
+      temperatureF: Math.round(forecast.current.temperature_2m || 0),
+      description: describeWeatherCode(forecast.current.weather_code),
+      feelsLikeF: Math.round(forecast.current.apparent_temperature || 0),
+      humidity: Math.round(forecast.current.relative_humidity_2m || 0),
+      windMph: Math.round(forecast.current.wind_speed_10m || 0),
+      forecast: dayNames.slice(0, 5).map((day, index) => ({
+        day: new Date(day).toLocaleDateString('en-US', { weekday: 'short' }),
+        temperatureF: Math.round(dailyHighs[index] || 0),
+        lowTemperatureF: Math.round(dailyLows[index] || 0),
+        description: describeWeatherCode(dailyCodes[index]),
       })),
     })
   } catch (error) {

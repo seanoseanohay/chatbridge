@@ -90,7 +90,7 @@ Phases are gate-based. A phase must fully pass its gate criteria before the next
 **Tasks:**
 1. Build Weather app: `src/apps/weather/` with manifest, API call logic, display.
 2. Add Weather manifest to server registry.
-3. Add OPENWEATHER_API_KEY to environment config.
+3. Configure the weather service endpoint for Open-Meteo-backed forecasts.
 4. Implement `weather_get` tool routing in the plugin runtime (no new runtime code needed; this tests the existing routing).
 5. Connect Weather to the event bus.
 

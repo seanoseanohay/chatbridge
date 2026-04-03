@@ -109,7 +109,7 @@ Requirements are numbered and testable. Each must be verifiable by running a spe
 
 **R-70.** Typing a message that requests weather for a location (e.g. "what's the weather in Austin?") causes the assistant to invoke `weather_get`. The weather AppFrame renders with current conditions and a 5-day forecast.
 
-**R-71.** The Weather app makes its API call to OpenWeatherMap from the app iframe using a public API key configured at build time. No user authentication is required.
+**R-71.** The Weather app makes its API call through the ChatBridge weather endpoint backed by Open-Meteo. No user authentication is required.
 
 **R-72.** If the location is not found by the API, the AppFrame displays an error state with the message "Location not found" and the user's input. The assistant acknowledges the failure in chat.
 

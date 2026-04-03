@@ -28,7 +28,6 @@ Set these once in the Railway dashboard so service settings match the committed 
 Required variables:
 
 - `PLUGIN_BACKEND_URL=https://backend-production-8727.up.railway.app`
-- `OPENWEATHER_API_KEY=<value>`
 
 ### Backend
 
