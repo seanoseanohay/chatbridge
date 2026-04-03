@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { extractWeatherLocation, shouldLaunchChessApp, summarizeWeatherToolResult } from './stream-text'
+import { extractWeatherLocation, shouldLaunchChessApp } from '../../../plugin-runtime/deterministic-prompts'
+import { summarizeWeatherToolResult } from './stream-text'
 
 describe('stream-text app routing helpers', () => {
   it('detects common chess launch phrases', () => {

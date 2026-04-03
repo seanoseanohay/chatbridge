@@ -86,6 +86,7 @@ import {
   type SessionType,
   type ShortcutSendValue,
 } from '../../../shared/types'
+import { getDeterministicAppPrompt } from '../../../plugin-runtime/deterministic-prompts'
 import * as dom from '../../hooks/dom'
 import * as sessionHelpers from '../../stores/sessionHelpers'
 import * as toastActions from '../../stores/toastActions'
@@ -469,7 +470,11 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
       }
 
       // 未选择模型时 显示error tip
-      if (!model) {
+      const messageText =
+        preConstructedMessage.message?.contentParts.find((part) => part.type === 'text')?.text?.trim() || ''
+      const deterministicAppPrompt = messageText ? getDeterministicAppPrompt(messageText) : null
+
+      if (!model && !deterministicAppPrompt) {
         // 如果不延时执行，会导致error tip 立即消失
         await delay(100)
         if (closeSelectModelErrorTipCb.current) {

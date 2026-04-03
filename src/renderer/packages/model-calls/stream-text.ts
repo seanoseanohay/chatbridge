@@ -35,6 +35,7 @@ import {
 import fileToolSet from './toolsets/file'
 import { getToolSet } from './toolsets/knowledge-base'
 import { getPluginTools, injectActiveAppSummary, invokePluginTool } from '../../../plugin-runtime/runtime'
+import { extractWeatherLocation, shouldLaunchChessApp } from '../../../plugin-runtime/deterministic-prompts'
 import websearchToolSet, { parseLinkTool, webSearchTool } from './toolsets/web-search'
 
 function getLatestUserText(messages: Message[]) {
@@ -49,34 +50,6 @@ function getLatestUserText(messages: Message[]) {
       .trim()
   }
   return ''
-}
-
-export function shouldLaunchChessApp(text: string) {
-  const normalized = text.toLowerCase()
-  return (
-    normalized.includes("let's play chess") ||
-    normalized.includes('lets play chess') ||
-    normalized.includes('play chess') ||
-    normalized.includes('start chess') ||
-    normalized.includes('open chess')
-  )
-}
-
-export function extractWeatherLocation(text: string) {
-  const normalized = text.trim()
-  const patterns = [
-    /(?:what(?:'s| is) the weather(?: like)? in|weather in|forecast (?:for|in)|weather for|temperature (?:in|for))\s+(.+?)[?.!]*$/i,
-    /(?:how(?:'s| is) the weather(?: looking)? in)\s+(.+?)[?.!]*$/i,
-  ]
-
-  for (const pattern of patterns) {
-    const match = normalized.match(pattern)
-    if (match?.[1]) {
-      return match[1].trim().replace(/\b(today|tomorrow|right now)\b$/i, '').trim()
-    }
-  }
-
-  return null
 }
 
 export function summarizeWeatherToolResult(location: string, toolResult: unknown) {
