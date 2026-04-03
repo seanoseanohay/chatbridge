@@ -49,6 +49,19 @@ export default function AppFrame(props: AppFrameProps) {
   const [error, setError] = useState<string>()
   const [spotifyConnectLoading, setSpotifyConnectLoading] = useState(false)
 
+  const logSpotify = useCallback(
+    (message: string, details?: Record<string, unknown>) => {
+      if (appId !== 'spotify-v1') {
+        return
+      }
+      console.info('[plugin-runtime] spotify ' + message, {
+        sessionId,
+        ...(details || {}),
+      })
+    },
+    [appId, sessionId]
+  )
+
   const originMatches = useMemo(() => {
     if (srcDoc) {
       return true
@@ -79,13 +92,14 @@ export default function AppFrame(props: AppFrameProps) {
 
   const reportError = useCallback(
     (message: string) => {
+      logSpotify('frame:error', { message })
       clearReadyTimeout()
       setStatus('error')
       setError(message)
       markAppFrameStatus(sessionId, 'error', message)
       onError?.(message)
     },
-    [clearReadyTimeout, onError, sessionId]
+    [clearReadyTimeout, logSpotify, onError, sessionId]
   )
 
   const sendInit = useCallback(() => {
@@ -95,6 +109,10 @@ export default function AppFrame(props: AppFrameProps) {
     }
 
     try {
+      logSpotify('frame:init:send', {
+        useLoadReady,
+        originMatches,
+      })
       if (!useLoadReady) {
         setStatus('loading')
         setError(undefined)
@@ -126,7 +144,7 @@ export default function AppFrame(props: AppFrameProps) {
     } catch (initError) {
       reportError(initError instanceof Error ? initError.message : String(initError))
     }
-  }, [appId, buildInitEvent, clearReadyTimeout, originMatches, reportError, sessionId, useLoadReady])
+  }, [appId, buildInitEvent, clearReadyTimeout, logSpotify, originMatches, reportError, sessionId, useLoadReady])
 
   useEffect(() => {
     if (!frameWindow) {
@@ -138,6 +156,7 @@ export default function AppFrame(props: AppFrameProps) {
       (event) => {
         switch (event.type) {
           case 'APP_READY':
+            logSpotify('frame:event:ready')
             initAckRef.current = true
             clearReadyTimeout()
             setStatus('ready')
@@ -146,13 +165,16 @@ export default function AppFrame(props: AppFrameProps) {
             onReady?.()
             break
           case 'APP_STATE_UPDATE':
+            logSpotify('frame:event:state-update', { stateSummary: event.stateSummary })
             initAckRef.current = true
             clearReadyTimeout()
             break
           case 'APP_ERROR':
+            logSpotify('frame:event:error', { error: event.error })
             reportError(event.error)
             break
           case 'APP_COMPLETE':
+            logSpotify('frame:event:complete', { result: event.result })
             clearReadyTimeout()
             setStatus('completed')
             markAppFrameStatus(sessionId, 'completed')
@@ -163,7 +185,7 @@ export default function AppFrame(props: AppFrameProps) {
       },
       { sourceWindow: frameWindow }
     )
-  }, [clearReadyTimeout, frameWindow, onReady, reportError, sessionId])
+  }, [clearReadyTimeout, frameWindow, logSpotify, onReady, reportError, sessionId])
 
   useEffect(() => {
     if (!frameWindow) {
@@ -187,12 +209,14 @@ export default function AppFrame(props: AppFrameProps) {
       setSpotifyConnectLoading(false)
 
       if (event.ok) {
+        logSpotify('oauth:complete', { ok: true })
         setStatus('loading')
         setError(undefined)
         sendInit()
         return
       }
 
+      logSpotify('oauth:complete', { ok: false, error: event.error })
       reportError(typeof event.error === 'string' ? event.error : 'Spotify connection failed')
     }
 
@@ -200,7 +224,7 @@ export default function AppFrame(props: AppFrameProps) {
     return () => {
       window.removeEventListener('message', handleSpotifyOAuthMessage)
     }
-  }, [appId, reportError, sendInit])
+  }, [appId, logSpotify, reportError, sendInit])
 
   useEffect(() => {
     return () => {
@@ -223,6 +247,10 @@ export default function AppFrame(props: AppFrameProps) {
     registerAppFrame(sessionId, iframe || null)
     setFrameWindow(nextWindow)
     initAckRef.current = false
+    logSpotify('frame:load', {
+      hasContentWindow: Boolean(nextWindow),
+      useLoadReady,
+    })
     if (useLoadReady) {
       try {
         sendToApp(iframe, buildInitEvent())
@@ -237,18 +265,25 @@ export default function AppFrame(props: AppFrameProps) {
       markAppFrameStatus(sessionId, 'ready')
       onReady?.()
     }
-  }, [buildInitEvent, clearReadyTimeout, onReady, reportError, sessionId, useLoadReady])
+  }, [buildInitEvent, clearReadyTimeout, logSpotify, onReady, reportError, sessionId, useLoadReady])
 
   const handleSpotifyConnect = useCallback(async () => {
     const backendUrl = typeof initConfig?.backendUrl === 'string' ? initConfig.backendUrl : ''
     const authToken = typeof initConfig?.authToken === 'string' ? initConfig.authToken : ''
 
     if (!backendUrl || !authToken) {
+      logSpotify('oauth:connect:blocked', {
+        hasBackendUrl: Boolean(backendUrl),
+        hasAuthToken: Boolean(authToken),
+      })
       reportError('Sign in to ChatBridge before connecting Spotify')
       return
     }
 
     setSpotifyConnectLoading(true)
+    logSpotify('oauth:connect:start', {
+      backendUrl,
+    })
     try {
       const response = await fetch(
         `${backendUrl.replace(/\/$/, '')}/api/oauth/spotify/connect?sessionId=${encodeURIComponent(sessionId)}`,
@@ -261,6 +296,11 @@ export default function AppFrame(props: AppFrameProps) {
       )
 
       const payload = (await response.json()) as { authorizeUrl?: string; error?: string }
+      logSpotify('oauth:connect:response', {
+        ok: response.ok,
+        status: response.status,
+        payload,
+      })
       if (!response.ok || !payload.authorizeUrl) {
         throw new Error(payload.error || 'Failed to start Spotify connection')
       }
@@ -271,9 +311,12 @@ export default function AppFrame(props: AppFrameProps) {
       }
     } catch (connectError) {
       setSpotifyConnectLoading(false)
+      logSpotify('oauth:connect:error', {
+        error: connectError instanceof Error ? connectError.message : String(connectError),
+      })
       reportError(connectError instanceof Error ? connectError.message : String(connectError))
     }
-  }, [initConfig?.authToken, initConfig?.backendUrl, reportError, sessionId])
+  }, [initConfig?.authToken, initConfig?.backendUrl, logSpotify, reportError, sessionId])
 
   return (
     <Stack gap="xs" className="rounded-2xl border border-solid border-chatbox-border-primary bg-chatbox-background-secondary p-3">

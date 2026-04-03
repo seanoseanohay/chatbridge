@@ -109,6 +109,10 @@ export async function maybeHandleDeterministicAppPrompt(messages: Message[], ses
   }
 
   if (shouldLaunchSpotifyApp(latestUserText)) {
+    console.info('[plugin-runtime] spotify route:deterministic', {
+      sessionId,
+      latestUserText,
+    })
     const toolCallId = `spotify_open_${uniqueId()}`
     const toolResult = await invokePluginTool('spotify_open', {}, {
       conversationId: sessionId,

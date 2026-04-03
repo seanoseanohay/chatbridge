@@ -29,6 +29,14 @@ function installMessageHandler() {
       return
     }
 
+    if (parsedEvent.sessionId.includes('spotify')) {
+      console.info('[plugin-runtime] spotify eventBus:receive', {
+        type: parsedEvent.type,
+        sessionId: parsedEvent.sessionId,
+        rawEventOrigin: rawEvent.origin,
+      })
+    }
+
     const sessionListeners = listeners.get(parsedEvent.sessionId)
     if (!sessionListeners?.size) {
       return
@@ -55,6 +63,14 @@ export function sendToApp(
 
   if (!targetWindow) {
     throw new Error('App iframe is not ready')
+  }
+
+  if (event.sessionId.includes('spotify')) {
+    console.info('[plugin-runtime] spotify eventBus:send', {
+      type: event.type,
+      sessionId: event.sessionId,
+      targetOrigin,
+    })
   }
 
   targetWindow.postMessage(parsedEvent, targetOrigin)

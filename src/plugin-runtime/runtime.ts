@@ -38,6 +38,10 @@ const runtimeSessions = new Map<string, RuntimeSession>()
 const frameReadySessions = new Set<string>()
 const frameWaiters = new Map<string, Set<{ resolve: () => void; reject: (error: Error) => void; timeoutId: number }>>()
 
+function logSpotify(message: string, details?: Record<string, unknown>) {
+  console.info('[plugin-runtime] spotify ' + message, details || {})
+}
+
 function isLocalSessionId(sessionId: string) {
   return sessionId.startsWith('local-app-session-')
 }
@@ -383,10 +387,24 @@ async function ensureRuntimeSession(
   toolCallId: string,
   initConfig?: Record<string, unknown>
 ) {
+  if (appId === 'spotify-v1') {
+    logSpotify('runtime:ensure:start', {
+      conversationId,
+      toolCallId,
+      hasActiveSession: Boolean(getDefaultStore().get(activeAppSessionAtom)),
+      hasAuthToken: Boolean(getPluginAuthToken()),
+    })
+  }
   const current = getDefaultStore().get(activeAppSessionAtom)
   if (current?.appId === appId) {
     const existing = runtimeSessions.get(current.sessionId)
     if (existing) {
+      if (appId === 'spotify-v1') {
+        logSpotify('runtime:ensure:reuse', {
+          sessionId: existing.session.id,
+          toolCallId: existing.frameToolCallId,
+        })
+      }
       if (initConfig) {
         updateFrameEntry(existing.frameToolCallId, (entry) => ({
           ...entry,
@@ -409,13 +427,34 @@ async function ensureRuntimeSession(
   let session: AppSession
   if (supportsLocalRuntime(appId) && !getPluginAuthToken()) {
     session = createLocalAppSession(appId, conversationId)
+    if (appId === 'spotify-v1') {
+      logSpotify('runtime:ensure:local-session', {
+        sessionId: session.id,
+      })
+    }
   } else {
     try {
       session = await createAppSession(appId, conversationId)
+      if (appId === 'spotify-v1') {
+        logSpotify('runtime:ensure:backend-session', {
+          sessionId: session.id,
+        })
+      }
     } catch (error) {
       if (supportsLocalRuntime(appId) && error instanceof Error && error.message === 'Plugin backend authentication required') {
         session = createLocalAppSession(appId, conversationId)
+        if (appId === 'spotify-v1') {
+          logSpotify('runtime:ensure:local-fallback-auth', {
+            sessionId: session.id,
+            error: error.message,
+          })
+        }
       } else {
+        if (appId === 'spotify-v1') {
+          logSpotify('runtime:ensure:error', {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
         throw error
       }
     }
@@ -457,6 +496,15 @@ async function ensureRuntimeSession(
       ...(initConfig || {}),
     },
   })
+
+  if (appId === 'spotify-v1') {
+    logSpotify('runtime:ensure:frame-entry', {
+      sessionId: session.id,
+      toolCallId,
+      origin: frameSource.origin,
+      hasAuthToken: Boolean(getPluginAuthToken()),
+    })
+  }
 
   return runtimeSession
 }
@@ -510,7 +558,14 @@ export function markAppFrameStatus(sessionId: string, status: PluginFrameEntry['
 
 function waitForFrameReady(sessionId: string, timeoutMs = 10_000) {
   if (frameReadySessions.has(sessionId)) {
+    if (sessionId.includes('spotify')) {
+      logSpotify('frame:ready:already', { sessionId })
+    }
     return Promise.resolve()
+  }
+
+  if (sessionId.includes('spotify')) {
+    logSpotify('frame:ready:wait', { sessionId, timeoutMs })
   }
 
   return new Promise<void>((resolve, reject) => {
@@ -528,6 +583,9 @@ function waitForFrameReady(sessionId: string, timeoutMs = 10_000) {
       }
       if (waiters.size === 0) {
         frameWaiters.delete(sessionId)
+      }
+      if (sessionId.includes('spotify')) {
+        logSpotify('frame:ready:timeout', { sessionId, timeoutMs })
       }
       reject(new Error('App frame was not ready in time'))
     }, timeoutMs)
@@ -577,6 +635,14 @@ export async function invokePluginTool(
   params: Record<string, unknown>,
   options: { conversationId: string; appId: string; toolCallId: string }
 ) {
+  if (options.appId === 'spotify-v1' || toolName.startsWith('spotify_')) {
+    logSpotify('invoke:start', {
+      toolName,
+      params,
+      conversationId: options.conversationId,
+      toolCallId: options.toolCallId,
+    })
+  }
   const runtimeSession =
     toolName === 'chess_start'
       ? await ensureRuntimeSession(options.appId, options.conversationId, options.toolCallId)
@@ -588,6 +654,14 @@ export async function invokePluginTool(
 
   if (!runtimeSession) {
     throw new Error(`No active plugin session found for tool "${toolName}"`)
+  }
+
+  if (toolName.startsWith('spotify_')) {
+    logSpotify('invoke:session', {
+      toolName,
+      sessionId: runtimeSession.session.id,
+      frameReady: frameReadySessions.has(runtimeSession.session.id),
+    })
   }
 
   if (toolName.startsWith('weather_')) {
@@ -619,6 +693,15 @@ export async function invokePluginTool(
 
   const seq = ++runtimeSession.nextSeq
 
+  if (toolName.startsWith('spotify_')) {
+    logSpotify('invoke:dispatch', {
+      toolName,
+      sessionId: runtimeSession.session.id,
+      seq,
+      params,
+    })
+  }
+
   if (toolName.startsWith('weather_')) {
     console.info('[plugin-runtime] weather invoke:dispatch', {
       toolName,
@@ -643,6 +726,13 @@ export async function invokePluginTool(
 
     const timeout = window.setTimeout(() => {
       runtimeSession.pendingBySeq.delete(seq)
+      if (toolName.startsWith('spotify_')) {
+        logSpotify('invoke:timeout', {
+          toolName,
+          sessionId: runtimeSession.session.id,
+          seq,
+        })
+      }
       if (toolName.startsWith('weather_')) {
         console.warn('[plugin-runtime] weather invoke:timeout', {
           toolName,
@@ -664,10 +754,26 @@ export async function invokePluginTool(
 
     pending.resolve = (value) => {
       window.clearTimeout(timeout)
+      if (toolName.startsWith('spotify_')) {
+        logSpotify('invoke:result', {
+          toolName,
+          sessionId: runtimeSession.session.id,
+          seq,
+          value,
+        })
+      }
       resolve(value)
     }
     pending.reject = (error) => {
       window.clearTimeout(timeout)
+      if (toolName.startsWith('spotify_')) {
+        logSpotify('invoke:reject', {
+          toolName,
+          sessionId: runtimeSession.session.id,
+          seq,
+          error: error.message,
+        })
+      }
       reject(error)
     }
 
