@@ -316,7 +316,7 @@ export function createWeatherAppSrcDoc() {
           ['Feels like', Math.round(current.main.feels_like) + '°F'],
           ['Humidity', current.main.humidity + '%'],
           ['Wind', Math.round(current.wind.speed) + ' mph'],
-          ['Clouds', current.clouds.all + '%'],
+          ['Clouds', typeof current.cloudCover === 'number' ? current.cloudCover + '%' : 'N/A'],
         ];
         for (const row of rows) {
           const el = document.createElement('div');
@@ -384,8 +384,9 @@ export function createWeatherAppSrcDoc() {
         showLoading('Looking up ' + location + '...');
 
         try {
+          const normalizedBackendUrl = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
           const result = await fetchJson(
-            backendUrl.replace(/\/$/, '') + '/api/weather?location=' + encodeURIComponent(location)
+            normalizedBackendUrl + '/api/weather?location=' + encodeURIComponent(location)
           );
           console.info('[weather-app] lookup:success', { location, seq, result });
           const summaryText =
@@ -406,6 +407,7 @@ export function createWeatherAppSrcDoc() {
             },
             weather: [{ description: result.description }],
             wind: { speed: result.windMph },
+            cloudCover: typeof result.cloudCover === 'number' ? result.cloudCover : null,
           });
           renderForecast(
             Array.isArray(result.forecast)

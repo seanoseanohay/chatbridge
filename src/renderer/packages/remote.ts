@@ -3,7 +3,14 @@ import { z } from 'zod'
 import { getLogger } from '@/lib/utils'
 import platform from '@/platform'
 import { authInfoStore } from '@/stores/authInfoStore'
-import { CHATBOX_BUILD_CHANNEL, USE_BETA_API, USE_BETA_CHATBOX, USE_LOCAL_API, USE_LOCAL_CHATBOX } from '@/variables'
+import {
+  CHATBOX_BUILD_CHANNEL,
+  CHATBOX_BUILD_PLATFORM,
+  USE_BETA_API,
+  USE_BETA_CHATBOX,
+  USE_LOCAL_API,
+  USE_LOCAL_CHATBOX,
+} from '@/variables'
 import * as chatboxaiAPI from '../../shared/request/chatboxai_pool'
 import { createAfetch, createAuthenticatedAfetch, uploadFile } from '../../shared/request/request'
 import {
