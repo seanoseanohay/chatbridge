@@ -18,7 +18,6 @@ import {
   type KnowledgeBase,
   type Message,
   type MessageInfoPart,
-  type MessageToolCallPart,
   ModelProviderEnum,
   type ProviderOptions,
   type StreamTextResult,
@@ -96,6 +95,81 @@ export function summarizeWeatherToolResult(location: string, toolResult: unknown
   }
 
   return `Weather is ready in the app panel for ${location}.`
+}
+
+export async function maybeHandleDeterministicAppPrompt(messages: Message[], sessionId?: string): Promise<{
+  handled: boolean
+  result: StreamTextResult
+}> {
+  const latestUserText = getLatestUserText(messages)
+  if (!sessionId || !latestUserText) {
+    return { handled: false, result: { contentParts: [] } }
+  }
+
+  if (shouldLaunchChessApp(latestUserText)) {
+    const toolCallId = `chess_start_${uniqueId()}`
+    const toolResult = await invokePluginTool('chess_start', {}, {
+      conversationId: sessionId,
+      appId: 'chess-v1',
+      toolCallId,
+    })
+
+    return {
+      handled: true,
+      result: {
+        contentParts: [
+          {
+            type: 'tool-call',
+            state: 'result',
+            toolCallId,
+            toolName: 'chess_start',
+            args: {},
+            result: toolResult,
+          },
+          {
+            type: 'text',
+            text: 'Chess is ready in the app panel. Make your move on the board or type standard notation.',
+          },
+        ],
+      },
+    }
+  }
+
+  const weatherLocation = extractWeatherLocation(latestUserText)
+  if (weatherLocation) {
+    const toolCallId = `weather_get_${uniqueId()}`
+    const toolResult = await invokePluginTool(
+      'weather_get',
+      { location: weatherLocation },
+      {
+        conversationId: sessionId,
+        appId: 'weather-v1',
+        toolCallId,
+      }
+    )
+
+    return {
+      handled: true,
+      result: {
+        contentParts: [
+          {
+            type: 'tool-call',
+            state: 'result',
+            toolCallId,
+            toolName: 'weather_get',
+            args: { location: weatherLocation },
+            result: toolResult,
+          },
+          {
+            type: 'text',
+            text: summarizeWeatherToolResult(weatherLocation, toolResult),
+          },
+        ],
+      },
+    }
+  }
+
+  return { handled: false, result: { contentParts: [] } }
 }
 
 /**
@@ -380,71 +454,11 @@ export async function streamText(
       }
     }
 
-    const latestUserText = getLatestUserText(messages)
-    if (sessionId && tools.chess_start && shouldLaunchChessApp(latestUserText)) {
-      const toolCallId = `chess_start_${uniqueId()}`
-      const toolResult = await invokePluginTool('chess_start', {}, {
-        conversationId: sessionId,
-        appId: 'chess-v1',
-        toolCallId,
-      })
-
-      const toolCallPart: MessageToolCallPart = {
-        type: 'tool-call',
-        state: 'result',
-        toolCallId,
-        toolName: 'chess_start',
-        args: {},
-        result: toolResult,
-      }
-
+    const directAppResult = await maybeHandleDeterministicAppPrompt(messages, sessionId)
+    if (directAppResult.handled) {
       result = {
-        contentParts: [
-          ...infoParts,
-          toolCallPart,
-          {
-            type: 'text',
-            text: 'Chess is ready in the app panel. Make your move on the board or type standard notation.',
-          },
-        ],
-      }
-      onResultChange(result)
-      return { result, coreMessages }
-    }
-
-    const weatherLocation = extractWeatherLocation(latestUserText)
-    if (sessionId && tools.weather_get && weatherLocation) {
-      const toolCallId = `weather_get_${uniqueId()}`
-      const toolResult = await invokePluginTool(
-        'weather_get',
-        { location: weatherLocation },
-        {
-          conversationId: sessionId,
-          appId: 'weather-v1',
-          toolCallId,
-        }
-      )
-
-      const toolCallPart: MessageToolCallPart = {
-        type: 'tool-call',
-        state: 'result',
-        toolCallId,
-        toolName: 'weather_get',
-        args: { location: weatherLocation },
-        result: toolResult,
-      }
-
-      const weatherText = summarizeWeatherToolResult(weatherLocation, toolResult)
-
-      result = {
-        contentParts: [
-          ...infoParts,
-          toolCallPart,
-          {
-            type: 'text',
-            text: weatherText,
-          },
-        ],
+        ...directAppResult.result,
+        contentParts: [...infoParts, ...(directAppResult.result.contentParts || [])],
       }
       onResultChange(result)
       return { result, coreMessages }

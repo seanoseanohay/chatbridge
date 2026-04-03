@@ -24,7 +24,7 @@ import {
   MAX_INLINE_FILE_LINES,
   PREVIEW_LINES,
 } from '@/packages/context-management/attachment-payload'
-import { generateImage, streamText } from '@/packages/model-calls'
+import { generateImage, maybeHandleDeterministicAppPrompt, streamText } from '@/packages/model-calls'
 import { getModelDisplayName } from '@/packages/model-setting-utils'
 import { estimateTokensFromMessages } from '@/packages/token'
 import platform from '@/platform'
@@ -203,6 +203,21 @@ export async function generate(
           await modifyMessage(sessionId, targetMsg, false, !shouldPersist)
           if (shouldPersist) {
             lastPersistTimestamp = Date.now()
+          }
+        }
+
+        if (!settings.provider || !settings.modelId) {
+          const directAppResult = await maybeHandleDeterministicAppPrompt(promptMsgs, session.id)
+          if (directAppResult.handled) {
+            await modifyMessageCache(directAppResult.result)
+            targetMsg = {
+              ...targetMsg,
+              generating: false,
+              cancel: undefined,
+              status: [],
+            }
+            await modifyMessage(sessionId, targetMsg, true)
+            break
           }
         }
 
