@@ -1,7 +1,6 @@
 import express from 'express'
 import { pgPool } from './db/client'
 import { getRedisClient } from './cache/client'
-import { initializeSchema } from './db/init'
 import { authRouter } from './routes/auth'
 import { appsRouter } from './routes/apps'
 import { sessionsRouter } from './routes/sessions'
@@ -62,7 +61,6 @@ export function createServerApp() {
 async function bootstrap() {
   await pgPool.query('select 1')
   await getRedisClient()
-  await initializeSchema()
   const app = createServerApp()
   app.listen(env.PORT, () => {
     console.log(`chatbridge-server listening on :${env.PORT}`)
