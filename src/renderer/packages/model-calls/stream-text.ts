@@ -35,7 +35,7 @@ import {
 import fileToolSet from './toolsets/file'
 import { getToolSet } from './toolsets/knowledge-base'
 import { getPluginTools, injectActiveAppSummary, invokePluginTool } from '../../../plugin-runtime/runtime'
-import { extractWeatherLocation, shouldLaunchChessApp } from '../../../plugin-runtime/deterministic-prompts'
+import { extractWeatherLocation, shouldLaunchChessApp, shouldLaunchSpotifyApp } from '../../../plugin-runtime/deterministic-prompts'
 import websearchToolSet, { parseLinkTool, webSearchTool } from './toolsets/web-search'
 
 function getLatestUserText(messages: Message[]) {
@@ -102,6 +102,35 @@ export async function maybeHandleDeterministicAppPrompt(messages: Message[], ses
           {
             type: 'text',
             text: 'Chess is ready in the app panel. Make your move on the board or type standard notation.',
+          },
+        ],
+      },
+    }
+  }
+
+  if (shouldLaunchSpotifyApp(latestUserText)) {
+    const toolCallId = `spotify_open_${uniqueId()}`
+    const toolResult = await invokePluginTool('spotify_open', {}, {
+      conversationId: sessionId,
+      appId: 'spotify-v1',
+      toolCallId,
+    })
+
+    return {
+      handled: true,
+      result: {
+        contentParts: [
+          {
+            type: 'tool-call',
+            state: 'result',
+            toolCallId,
+            toolName: 'spotify_open',
+            args: {},
+            result: toolResult,
+          },
+          {
+            type: 'text',
+            text: 'Spotify is ready in the app panel. Use Connect Spotify to sign in, then create a playlist.',
           },
         ],
       },

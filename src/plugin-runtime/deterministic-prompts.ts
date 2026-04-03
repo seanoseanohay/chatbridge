@@ -1,5 +1,6 @@
 export type DeterministicAppPrompt =
   | { app: 'chess' }
+  | { app: 'spotify' }
   | { app: 'weather'; location: string }
 
 export function shouldLaunchChessApp(text: string) {
@@ -32,9 +33,26 @@ export function extractWeatherLocation(text: string) {
   return null
 }
 
+export function shouldLaunchSpotifyApp(text: string) {
+  const normalized = text.toLowerCase()
+  return (
+    normalized.includes('spotify') &&
+    (normalized.includes('open') ||
+      normalized.includes('login') ||
+      normalized.includes('log in') ||
+      normalized.includes('sign in') ||
+      normalized.includes('connect') ||
+      normalized.includes('playlist'))
+  )
+}
+
 export function getDeterministicAppPrompt(text: string): DeterministicAppPrompt | null {
   if (shouldLaunchChessApp(text)) {
     return { app: 'chess' }
+  }
+
+  if (shouldLaunchSpotifyApp(text)) {
+    return { app: 'spotify' }
   }
 
   const location = extractWeatherLocation(text)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractWeatherLocation, shouldLaunchChessApp } from '../../../plugin-runtime/deterministic-prompts'
+import { extractWeatherLocation, shouldLaunchChessApp, shouldLaunchSpotifyApp } from '../../../plugin-runtime/deterministic-prompts'
 import { summarizeWeatherToolResult } from './stream-text'
 
 describe('stream-text app routing helpers', () => {
@@ -8,6 +8,14 @@ describe('stream-text app routing helpers', () => {
     expect(shouldLaunchChessApp('open chess for me')).toBe(true)
     expect(shouldLaunchChessApp('start chess')).toBe(true)
     expect(shouldLaunchChessApp('what is the capital of France?')).toBe(false)
+  })
+
+  it('detects common spotify launch phrases', () => {
+    expect(shouldLaunchSpotifyApp('open spotify')).toBe(true)
+    expect(shouldLaunchSpotifyApp('log in to spotify')).toBe(true)
+    expect(shouldLaunchSpotifyApp('connect spotify')).toBe(true)
+    expect(shouldLaunchSpotifyApp('make me a spotify playlist')).toBe(true)
+    expect(shouldLaunchSpotifyApp('tell me a joke')).toBe(false)
   })
 
   it('extracts weather locations from common prompts', () => {
