@@ -35,15 +35,17 @@ export function extractWeatherLocation(text: string) {
 
 export function shouldLaunchSpotifyApp(text: string) {
   const normalized = text.toLowerCase()
-  return (
-    normalized.includes('spotify') &&
-    (normalized.includes('open') ||
-      normalized.includes('login') ||
-      normalized.includes('log in') ||
-      normalized.includes('sign in') ||
-      normalized.includes('connect') ||
-      normalized.includes('playlist'))
-  )
+  const hasSpotify = /\bspotify\b/.test(normalized)
+  const hasLaunchIntent =
+    /\b(open|launch|start|connect|authorize|auth|use)\b/.test(normalized) ||
+    /\blogin\b/.test(normalized) ||
+    /\blog in\b/.test(normalized) ||
+    /\blog me in(to)?\b/.test(normalized) ||
+    /\bsign in\b/.test(normalized) ||
+    /\bsign me in(to)?\b/.test(normalized) ||
+    /\bplaylist\b/.test(normalized)
+
+  return hasSpotify && hasLaunchIntent
 }
 
 export function getDeterministicAppPrompt(text: string): DeterministicAppPrompt | null {

@@ -13,8 +13,11 @@ describe('stream-text app routing helpers', () => {
   it('detects common spotify launch phrases', () => {
     expect(shouldLaunchSpotifyApp('open spotify')).toBe(true)
     expect(shouldLaunchSpotifyApp('log in to spotify')).toBe(true)
+    expect(shouldLaunchSpotifyApp('log me into spotify')).toBe(true)
+    expect(shouldLaunchSpotifyApp('sign me into spotify')).toBe(true)
     expect(shouldLaunchSpotifyApp('connect spotify')).toBe(true)
     expect(shouldLaunchSpotifyApp('make me a spotify playlist')).toBe(true)
+    expect(shouldLaunchSpotifyApp('use spotify')).toBe(true)
     expect(shouldLaunchSpotifyApp('tell me a joke')).toBe(false)
   })
 
