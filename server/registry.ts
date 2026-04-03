@@ -122,6 +122,55 @@ const registryManifests = [
       },
     ],
   },
+  {
+    id: 'spotify-v1',
+    name: 'Spotify',
+    version: '1.0.0',
+    origin: 'https://apps.chatbridge.app/spotify',
+    requiresAuth: true,
+    authProvider: 'spotify',
+    tools: [
+      {
+        name: 'spotify_open',
+        description: 'Open the Spotify app in the ChatBridge app panel.',
+        parameters: {
+          type: 'object',
+          properties: {},
+          additionalProperties: false,
+        },
+        returns: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string' },
+          },
+          required: ['sessionId'],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: 'spotify_create_playlist',
+        description: 'Create a Spotify playlist from a prompt and show it in the app frame.',
+        parameters: {
+          type: 'object',
+          properties: {
+            prompt: { type: 'string' },
+            trackCount: { type: 'number' },
+          },
+          required: ['prompt'],
+          additionalProperties: false,
+        },
+        returns: {
+          type: 'object',
+          properties: {
+            playlistUrl: { type: 'string' },
+            embedUrl: { type: 'string' },
+          },
+          required: ['playlistUrl', 'embedUrl'],
+          additionalProperties: true,
+        },
+      },
+    ],
+  },
 ] satisfies AppManifest[]
 
 const registry = registryManifests.map((manifest) => {

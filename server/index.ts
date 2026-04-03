@@ -6,6 +6,7 @@ import { appsRouter } from './routes/apps'
 import { sessionsRouter } from './routes/sessions'
 import { invocationsRouter } from './routes/invocations'
 import { oauthRouter } from './routes/oauth'
+import { spotifyRouter } from './routes/spotify'
 import { weatherRouter } from './routes/weather'
 import { env } from './config'
 
@@ -16,7 +17,7 @@ export function createServerApp() {
     response.header('Access-Control-Allow-Origin', request.headers.origin || '*')
     response.header('Vary', 'Origin')
     response.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-    response.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS')
+    response.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS')
 
     if (request.method === 'OPTIONS') {
       response.sendStatus(204)
@@ -44,6 +45,7 @@ export function createServerApp() {
   app.use('/api/sessions', sessionsRouter)
   app.use('/api/sessions/:id/invocations', invocationsRouter)
   app.use('/api/oauth', oauthRouter)
+  app.use('/api/spotify', spotifyRouter)
   app.use('/api/weather', weatherRouter)
 
   app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
