@@ -219,6 +219,14 @@ function handleAppEvent(sessionId: string, event: AppToPlatformEvent) {
     return
   }
 
+  if (runtimeSession.entry.appId === 'weather-v1') {
+    console.info('[plugin-runtime] weather event', {
+      sessionId,
+      type: event.type,
+      event,
+    })
+  }
+
   switch (event.type) {
     case 'APP_STATE_UPDATE': {
       if (event.seq < runtimeSession.lastSeq) {
@@ -566,6 +574,16 @@ export async function invokePluginTool(
     throw new Error(`No active plugin session found for tool "${toolName}"`)
   }
 
+  if (toolName.startsWith('weather_')) {
+    console.info('[plugin-runtime] weather invoke:start', {
+      toolName,
+      params,
+      sessionId: runtimeSession.session.id,
+      toolCallId: options.toolCallId,
+      frameReady: frameReadySessions.has(runtimeSession.session.id),
+    })
+  }
+
   if (toolName === 'chess_start') {
     const result = {
       sessionId: runtimeSession.session.id,
@@ -585,6 +603,15 @@ export async function invokePluginTool(
 
   const seq = ++runtimeSession.nextSeq
 
+  if (toolName.startsWith('weather_')) {
+    console.info('[plugin-runtime] weather invoke:dispatch', {
+      toolName,
+      params,
+      sessionId: runtimeSession.session.id,
+      seq,
+    })
+  }
+
   return await new Promise<unknown>((resolve, reject) => {
     const pending: PendingInvocation = {
       toolCallId: options.toolCallId,
@@ -600,6 +627,14 @@ export async function invokePluginTool(
 
     const timeout = window.setTimeout(() => {
       runtimeSession.pendingBySeq.delete(seq)
+      if (toolName.startsWith('weather_')) {
+        console.warn('[plugin-runtime] weather invoke:timeout', {
+          toolName,
+          params,
+          sessionId: runtimeSession.session.id,
+          seq,
+        })
+      }
       void logInvocation(runtimeSession.session.id, toolName, params, { error: 'timeout' }, 'timeout', Date.now() - pending.startedAt)
       try {
         sendToApp(iframe, {

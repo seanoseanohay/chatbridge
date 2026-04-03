@@ -255,6 +255,7 @@ export function createWeatherAppSrcDoc() {
         if (!sessionId) {
           return;
         }
+        console.info('[weather-app] post', { type, sessionId, payload });
         window.parent.postMessage({ type, sessionId, ...payload }, '*');
       }
 
@@ -354,6 +355,7 @@ export function createWeatherAppSrcDoc() {
       }
 
       async function lookupWeather(location, toolName, seq) {
+        console.info('[weather-app] lookup:start', { location, toolName, seq, backendUrl });
         subtitleEl.textContent = location;
         if (!backendUrl) {
           const message = 'Weather service is not configured.';
@@ -373,6 +375,7 @@ export function createWeatherAppSrcDoc() {
           const result = await fetchJson(
             backendUrl.replace(/\/$/, '') + '/api/weather?location=' + encodeURIComponent(location)
           );
+          console.info('[weather-app] lookup:success', { location, seq, result });
           const summaryText =
             result.location +
             ': ' +
@@ -432,6 +435,7 @@ export function createWeatherAppSrcDoc() {
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
+          console.warn('[weather-app] lookup:error', { location, seq, message });
           showError(message);
           post('APP_ERROR', { error: message });
           post('APP_RESULT', {
@@ -449,6 +453,7 @@ export function createWeatherAppSrcDoc() {
         }
 
         if (event.type === 'INIT_APP') {
+          console.info('[weather-app] init', { sessionId: event.sessionId, config: event.config });
           sessionId = event.sessionId;
           backendUrl = typeof event.config?.backendUrl === 'string' ? event.config.backendUrl : '';
           post('APP_READY', {});
@@ -459,6 +464,7 @@ export function createWeatherAppSrcDoc() {
         }
 
         if (event.type === 'INVOKE_TOOL' && event.toolName === 'weather_get') {
+          console.info('[weather-app] invoke', { seq: event.seq, params: event.params });
           const location = typeof event.params?.location === 'string' ? event.params.location : '';
           if (!location.trim()) {
             const message = 'Location not found';
