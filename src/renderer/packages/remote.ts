@@ -18,9 +18,11 @@ import {
 import { getOS } from './navigator'
 
 const log = getLogger('remote-api')
+const REMOTE_API_DISABLED_REASON = 'Chatbox remote API is disabled in hosted web builds'
 
 let _afetch: ReturnType<typeof createAfetch> | null = null
 let afetchPromise: Promise<ReturnType<typeof createAfetch>> | null = null
+let remoteApiDisabledLogged = false
 
 async function initAfetch(): Promise<ReturnType<typeof createAfetch>> {
   if (afetchPromise) return afetchPromise
@@ -110,6 +112,22 @@ export function getChatboxOrigin() {
   }
 }
 
+function isHostedWebBuild() {
+  return CHATBOX_BUILD_PLATFORM === 'web'
+}
+
+function shouldDisableChatboxRemoteApi() {
+  return isHostedWebBuild() && !USE_LOCAL_API && !USE_BETA_API
+}
+
+function logRemoteApiDisabled(path: string) {
+  if (remoteApiDisabledLogged) {
+    return
+  }
+  remoteApiDisabledLogged = true
+  log.info(`${REMOTE_API_DISABLED_REASON}; skipping ${path}`)
+}
+
 const getChatboxHeaders = async () => {
   return {
     'CHATBOX-PLATFORM': await platform.getPlatform(),
@@ -125,6 +143,10 @@ const getChatboxHeaders = async () => {
 export async function checkNeedUpdate(version: string, os: string, config: Config, settings: Settings) {
   type Response = {
     need_update?: boolean
+  }
+  if (shouldDisableChatboxRemoteApi()) {
+    logRemoteApiDisabled('/chatbox_need_update')
+    return false
   }
   // const res = await ofetch<Response>(`${RELEASE_ORIGIN}/chatbox_need_update/${version}`, {
   const res = await ofetch<Response>(`${getAPIOrigin()}/chatbox_need_update/${version}`, {
@@ -233,6 +255,10 @@ export async function getRemoteConfig(config: keyof RemoteConfig) {
   type Response = {
     data: Pick<RemoteConfig, typeof config>
   }
+  if (shouldDisableChatboxRemoteApi()) {
+    logRemoteApiDisabled(`/api/remote_config/${String(config)}`)
+    return {} as Pick<RemoteConfig, typeof config>
+  }
   const res = await ofetch<Response>(`${getAPIOrigin()}/api/remote_config/${config}`, {
     retry: 3,
     headers: await getChatboxHeaders(),
@@ -248,6 +274,10 @@ export interface DialogConfig {
 export async function getDialogConfig(params: { uuid: string; language: string; version: string }) {
   type Response = {
     data: null | DialogConfig
+  }
+  if (shouldDisableChatboxRemoteApi()) {
+    logRemoteApiDisabled('/api/dialog_config')
+    return null
   }
   const res = await ofetch<Response>(`${getAPIOrigin()}/api/dialog_config`, {
     method: 'POST',
@@ -575,6 +605,13 @@ const ModelManifestResponseSchema = z.object({
 })
 
 export async function getModelManifest(params: { aiProvider: ModelProvider; licenseKey?: string; language?: string }) {
+  if (shouldDisableChatboxRemoteApi()) {
+    logRemoteApiDisabled('/api/model_manifest')
+    return {
+      groupName: 'Chatbox AI',
+      models: [],
+    }
+  }
   const afetch = await getAfetch()
   const res = await afetch(
     `${getAPIOrigin()}/api/model_manifest`,
