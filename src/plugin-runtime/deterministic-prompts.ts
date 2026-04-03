@@ -16,8 +16,10 @@ export function shouldLaunchChessApp(text: string) {
 export function extractWeatherLocation(text: string) {
   const normalized = text.trim()
   const patterns = [
-    /(?:what(?:'s| is) the weather(?: like)? in|weather in|forecast (?:for|in)|weather for|temperature (?:in|for))\s+(.+?)[?.!]*$/i,
+    /(?:what(?:'s| is) the weather(?: like)? in|show (?:me )?(?:the )?weather in|weather in|forecast (?:for|in)|weather for|temperature (?:in|for)|conditions (?:in|for)|is it (?:raining|snowing|sunny|cloudy|humid|windy|hot|cold) in)\s+(.+?)[?.!]*$/i,
     /(?:how(?:'s| is) the weather(?: looking)? in)\s+(.+?)[?.!]*$/i,
+    /^(.+?)\s+weather[?.!]*$/i,
+    /^forecast\s+(.+?)[?.!]*$/i,
   ]
 
   for (const pattern of patterns) {

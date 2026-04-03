@@ -16,6 +16,10 @@ describe('stream-text app routing helpers', () => {
     expect(extractWeatherLocation('forecast for London tomorrow')).toBe('London')
     expect(extractWeatherLocation('temperature for New York right now')).toBe('New York')
     expect(extractWeatherLocation('how is the weather looking in Seattle?')).toBe('Seattle')
+    expect(extractWeatherLocation('show me the weather in Miami')).toBe('Miami')
+    expect(extractWeatherLocation('is it raining in Boston?')).toBe('Boston')
+    expect(extractWeatherLocation('Austin weather')).toBe('Austin')
+    expect(extractWeatherLocation('forecast Paris')).toBe('Paris')
   })
 
   it('does not route unrelated prompts to weather', () => {
