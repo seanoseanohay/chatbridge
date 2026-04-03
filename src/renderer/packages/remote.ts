@@ -194,10 +194,6 @@ export async function listCopilotTags(lang: string) {
   type Response = {
     data: string[]
   }
-  if (shouldDisableChatboxRemoteApi()) {
-    logRemoteApiDisabled('/api/system_copilots/tags')
-    return []
-  }
   const res = await ofetch<Response>(`${getAPIOrigin()}/api/system_copilots/tags/${lang}`, {
     method: 'GET',
     retry: 3,
@@ -218,13 +214,6 @@ export async function listCopilotsByCursor(
     data: CopilotDetail[]
     next_cursor: string | null
   }
-  if (shouldDisableChatboxRemoteApi()) {
-    logRemoteApiDisabled('/api/system_copilots/list')
-    return {
-      data: [],
-      next_cursor: null,
-    }
-  }
   const res = await ofetch<Response>(`${getAPIOrigin()}/api/system_copilots/list`, {
     method: 'POST',
     retry: 3,
@@ -237,10 +226,6 @@ export async function recordCopilotUsage(params: {
   id: string
   action: 'create_session' | 'create_thread' | 'create_message' | 'use_copilot'
 }) {
-  if (shouldDisableChatboxRemoteApi()) {
-    logRemoteApiDisabled('/api/system_copilots/record_usage')
-    return
-  }
   await ofetch(`${getAPIOrigin()}/api/system_copilots/record_usage`, {
     method: 'POST',
     body: {
@@ -251,10 +236,6 @@ export async function recordCopilotUsage(params: {
 }
 
 export async function recordCopilotShare(detail: CopilotDetail) {
-  if (shouldDisableChatboxRemoteApi()) {
-    logRemoteApiDisabled('/api/copilots/share-record')
-    return
-  }
   await ofetch(`${getAPIOrigin()}/api/copilots/share-record`, {
     method: 'POST',
     body: {
