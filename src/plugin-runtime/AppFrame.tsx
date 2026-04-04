@@ -56,7 +56,7 @@ export default function AppFrame(props: AppFrameProps) {
           messageType: 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE',
           failureLabel: 'Spotify connection failed',
         }
-      : appId === 'github-v1'
+        : appId === 'github-v1'
         ? {
             label: 'GitHub',
             connectPath: '/api/oauth/github/connect',
@@ -64,6 +64,9 @@ export default function AppFrame(props: AppFrameProps) {
             failureLabel: 'GitHub connection failed',
           }
         : null
+  const backendUrl = typeof initConfig?.backendUrl === 'string' ? initConfig.backendUrl : ''
+  const authToken = typeof initConfig?.authToken === 'string' ? initConfig.authToken : ''
+  const canStartOAuth = Boolean(oauthConfig && backendUrl && authToken)
 
   const logSpotify = useCallback(
     (message: string, details?: Record<string, unknown>) => {
@@ -261,9 +264,6 @@ export default function AppFrame(props: AppFrameProps) {
     if (!oauthConfig) {
       return
     }
-    const backendUrl = typeof initConfig?.backendUrl === 'string' ? initConfig.backendUrl : ''
-    const authToken = typeof initConfig?.authToken === 'string' ? initConfig.authToken : ''
-
     if (!backendUrl || !authToken) {
       logSpotify('oauth:connect:blocked', {
         hasBackendUrl: Boolean(backendUrl),
@@ -309,7 +309,7 @@ export default function AppFrame(props: AppFrameProps) {
       })
       reportError(connectError instanceof Error ? connectError.message : String(connectError))
     }
-  }, [initConfig?.authToken, initConfig?.backendUrl, logSpotify, oauthConfig, reportError, sessionId])
+  }, [authToken, backendUrl, logSpotify, oauthConfig, reportError, sessionId])
 
   return (
     <Stack gap="xs" className="rounded-2xl border border-solid border-chatbox-border-primary bg-chatbox-background-secondary p-3">
@@ -319,7 +319,13 @@ export default function AppFrame(props: AppFrameProps) {
         </Text>
         <div className="flex items-center gap-2">
           {oauthConfig && status !== 'completed' && (
-            <Button size="xs" variant="light" loading={spotifyConnectLoading} onClick={() => void handleSpotifyConnect()}>
+            <Button
+              size="xs"
+              variant="light"
+              loading={spotifyConnectLoading}
+              disabled={!canStartOAuth}
+              onClick={() => void handleSpotifyConnect()}
+            >
               {`Connect ${oauthConfig.label}`}
             </Button>
           )}

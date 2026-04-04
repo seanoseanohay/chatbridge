@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import * as auth from './auth'
 import { __resetRegistryForTests, fetchRegistry, getAppManifest, resolveToolToApp } from './registry'
 
 const samplePayload = {
@@ -32,7 +33,23 @@ describe('plugin registry', () => {
     vi.restoreAllMocks()
   })
 
+  it('uses the built-in registry without calling the backend when no auth token exists', async () => {
+    vi.spyOn(auth, 'initializePluginAuth').mockResolvedValue(null)
+    vi.spyOn(auth, 'getPluginAuthToken').mockReturnValue(null)
+    const fetchMock = vi.fn<typeof fetch>()
+
+    const result = await fetchRegistry(fetchMock)
+
+    expect(result.status).toBe('unauthorized')
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(resolveToolToApp('chess_start')?.appId).toBe('chess-v1')
+    expect(resolveToolToApp('weather_get')?.appId).toBe('weather-v1')
+    expect(resolveToolToApp('github_open')?.appId).toBe('github-v1')
+  })
+
   it('loads and indexes manifests from the backend response', async () => {
+    vi.spyOn(auth, 'initializePluginAuth').mockResolvedValue('token')
+    vi.spyOn(auth, 'getPluginAuthToken').mockReturnValue('token')
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue({
       ok: true,
       status: 200,
@@ -48,6 +65,8 @@ describe('plugin registry', () => {
   })
 
   it('keeps the built-in chess app available on unauthorized responses', async () => {
+    vi.spyOn(auth, 'initializePluginAuth').mockResolvedValue('token')
+    vi.spyOn(auth, 'getPluginAuthToken').mockReturnValue('token')
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue({
       ok: false,
       status: 401,
@@ -66,6 +85,8 @@ describe('plugin registry', () => {
   })
 
   it('keeps built-in apps available when the backend is unreachable', async () => {
+    vi.spyOn(auth, 'initializePluginAuth').mockResolvedValue('token')
+    vi.spyOn(auth, 'getPluginAuthToken').mockReturnValue('token')
     const fetchMock = vi.fn<typeof fetch>().mockRejectedValue(new Error('connect ECONNREFUSED'))
 
     const result = await fetchRegistry(fetchMock)

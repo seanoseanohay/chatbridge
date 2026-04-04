@@ -150,11 +150,21 @@ export function getRegistryCache(): PluginRegistryEntry[] {
 
 export async function fetchRegistry(fetchImpl: typeof fetch = fetch): Promise<RegistryLoadResult> {
   await initializePluginAuth()
+  const token = getPluginAuthToken()
+  if (!token) {
+    rebuildIndexes([])
+    return {
+      apps: [],
+      status: 'unauthorized',
+      error: 'Plugin backend requires authentication',
+    }
+  }
+
   try {
     const response = await fetchImpl(`${getPluginBackendUrl()}/api/apps`, {
       headers: {
         Accept: 'application/json',
-        ...(getPluginAuthToken() ? { Authorization: `Bearer ${getPluginAuthToken()}` } : {}),
+        Authorization: `Bearer ${token}`,
       },
     })
 
