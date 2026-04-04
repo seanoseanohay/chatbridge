@@ -1,5 +1,6 @@
 import express from 'express'
 import { pgPool } from './db/client'
+import { initializeSchema } from './db/init'
 import { getRedisClient } from './cache/client'
 import { authRouter } from './routes/auth'
 import { appsRouter } from './routes/apps'
@@ -62,6 +63,7 @@ export function createServerApp() {
 
 async function bootstrap() {
   await pgPool.query('select 1')
+  await initializeSchema()
   await getRedisClient()
   const app = createServerApp()
   app.listen(env.PORT, () => {
