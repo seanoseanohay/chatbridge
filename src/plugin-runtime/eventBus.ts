@@ -16,7 +16,12 @@ function installMessageHandler() {
   }
 
   window.addEventListener('message', (rawEvent: MessageEvent) => {
-    if (rawEvent.data && typeof rawEvent.data === 'object' && rawEvent.data.type === 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE') {
+    if (
+      rawEvent.data &&
+      typeof rawEvent.data === 'object' &&
+      (rawEvent.data.type === 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE' ||
+        rawEvent.data.type === 'CHATBRIDGE_GITHUB_OAUTH_COMPLETE')
+    ) {
       return
     }
 

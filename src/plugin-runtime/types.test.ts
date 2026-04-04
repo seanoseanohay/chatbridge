@@ -56,15 +56,15 @@ describe('plugin contract validation', () => {
 
   test('rejects an auth manifest without authProvider', () => {
     const result = AppManifestSchema.safeParse({
-      id: 'spotify-v1',
-      name: 'Spotify',
+      id: 'github-v1',
+      name: 'GitHub',
       version: '1.0.0',
       origin: 'https://apps.chatbridge.app',
       requiresAuth: true,
       tools: [
         {
-          name: 'spotify_create_playlist',
-          description: 'Create a playlist',
+          name: 'github_open',
+          description: 'Open GitHub',
           parameters: { type: 'object' },
           returns: { type: 'object' },
         },

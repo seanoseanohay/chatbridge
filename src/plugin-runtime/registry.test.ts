@@ -61,6 +61,8 @@ describe('plugin registry', () => {
     expect(getAppManifest('chess-v1')?.name).toBe('Chess')
     expect(resolveToolToApp('weather_get')?.appId).toBe('weather-v1')
     expect(getAppManifest('weather-v1')?.name).toBe('Weather')
+    expect(resolveToolToApp('github_open')?.appId).toBe('github-v1')
+    expect(getAppManifest('github-v1')?.name).toBe('GitHub')
   })
 
   it('keeps built-in apps available when the backend is unreachable', async () => {
@@ -73,5 +75,6 @@ describe('plugin registry', () => {
     expect(result.apps.length).toBeGreaterThan(0)
     expect(resolveToolToApp('chess_start')?.appId).toBe('chess-v1')
     expect(resolveToolToApp('weather_get')?.appId).toBe('weather-v1')
+    expect(resolveToolToApp('github_open')?.appId).toBe('github-v1')
   })
 })

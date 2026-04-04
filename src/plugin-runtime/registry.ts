@@ -23,7 +23,7 @@ const BUILTIN_ENTRIES: PluginRegistryEntry[] = [
             type: 'object',
             properties: { sessionId: { type: 'string' } },
             required: ['sessionId'],
-            additionalProperties: false,
+            additionalProperties: true,
           },
         },
         {
@@ -82,48 +82,26 @@ const BUILTIN_ENTRIES: PluginRegistryEntry[] = [
     },
   }),
   PluginRegistryEntrySchema.parse({
-    appId: 'spotify-v1',
-    origin: 'https://apps.chatbridge.app/spotify',
+    appId: 'github-v1',
+    origin: 'https://apps.chatbridge.app/github',
     enabled: true,
     manifest: {
-      id: 'spotify-v1',
-      name: 'Spotify',
+      id: 'github-v1',
+      name: 'GitHub',
       version: '1.0.0',
-      origin: 'https://apps.chatbridge.app/spotify',
+      origin: 'https://apps.chatbridge.app/github',
       requiresAuth: true,
-      authProvider: 'spotify',
+      authProvider: 'github',
       tools: [
         {
-          name: 'spotify_open',
-          description: 'Open the Spotify app in the ChatBridge app panel.',
+          name: 'github_open',
+          description: 'Open the GitHub app in the ChatBridge app panel.',
           parameters: { type: 'object', properties: {}, additionalProperties: false },
           returns: {
             type: 'object',
             properties: { sessionId: { type: 'string' } },
             required: ['sessionId'],
             additionalProperties: false,
-          },
-        },
-        {
-          name: 'spotify_create_playlist',
-          description: 'Create a Spotify playlist from a prompt and show it in the app frame.',
-          parameters: {
-            type: 'object',
-            properties: {
-              prompt: { type: 'string' },
-              trackCount: { type: 'number' },
-            },
-            required: ['prompt'],
-            additionalProperties: false,
-          },
-          returns: {
-            type: 'object',
-            properties: {
-              playlistUrl: { type: 'string' },
-              embedUrl: { type: 'string' },
-            },
-            required: ['playlistUrl', 'embedUrl'],
-            additionalProperties: true,
           },
         },
       ],

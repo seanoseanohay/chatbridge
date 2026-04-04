@@ -3,6 +3,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { getRedisClient } from '../cache/client'
 import { env } from '../config'
+import { disconnectGitHub, exchangeGitHubAuthorizationCode, getStoredGitHubToken, upsertGitHubToken } from '../github'
 import { requireAuth, type AuthenticatedRequest } from '../middleware/auth'
 import { disconnectSpotify, exchangeSpotifyAuthorizationCode, getStoredSpotifyToken, refreshSpotifyAccessToken, upsertSpotifyToken } from '../spotify'
 
@@ -16,6 +17,8 @@ const CALLBACK_QUERY_SCHEMA = z.object({
   error: z.string().optional(),
 })
 
+const GITHUB_OAUTH_REDIS_KEY_PREFIX = 'chatbridge:github:oauth'
+const GITHUB_SCOPES = ['read:user', 'repo'].join(' ')
 const OAUTH_REDIS_KEY_PREFIX = 'chatbridge:spotify:oauth'
 const SPOTIFY_SCOPES = ['playlist-modify-private', 'playlist-modify-public', 'user-read-private'].join(' ')
 
@@ -23,9 +26,17 @@ function oauthRedisKey(state: string) {
   return `${OAUTH_REDIS_KEY_PREFIX}:${state}`
 }
 
-function renderOAuthCallbackHtml(payload: { ok: boolean; state?: string; error?: string }) {
+function githubOAuthRedisKey(state: string) {
+  return `${GITHUB_OAUTH_REDIS_KEY_PREFIX}:${state}`
+}
+
+function renderOAuthCallbackHtml(
+  provider: 'Spotify' | 'GitHub',
+  messageType: 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE' | 'CHATBRIDGE_GITHUB_OAUTH_COMPLETE',
+  payload: { ok: boolean; state?: string; error?: string }
+) {
   const serialized = JSON.stringify({
-    type: 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE',
+    type: messageType,
     ...payload,
   })
 
@@ -33,13 +44,13 @@ function renderOAuthCallbackHtml(payload: { ok: boolean; state?: string; error?:
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>ChatBridge Spotify Login</title>
+    <title>ChatBridge ${provider} Login</title>
     <style>
       body { font-family: system-ui, sans-serif; padding: 24px; color: #132238; }
     </style>
   </head>
   <body>
-    <h1>${payload.ok ? 'Spotify connected' : 'Spotify connection failed'}</h1>
+    <h1>${payload.ok ? `${provider} connected` : `${provider} connection failed`}</h1>
     <p>${payload.ok ? 'You can return to ChatBridge now.' : payload.error || 'Unknown OAuth error.'}</p>
     <script>
       const message = ${serialized};
@@ -55,6 +66,107 @@ function renderOAuthCallbackHtml(payload: { ok: boolean; state?: string; error?:
 }
 
 export const oauthRouter = Router()
+
+oauthRouter.get('/github/status', requireAuth, async (request: AuthenticatedRequest, response, next) => {
+  try {
+    const token = await getStoredGitHubToken(request.auth!.userId)
+    response.json({
+      connected: Boolean(token),
+      expiresAt: token?.expires_at || null,
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+oauthRouter.get('/github/connect', requireAuth, async (request: AuthenticatedRequest, response, next) => {
+  try {
+    if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
+      response.status(503).json({ error: 'GitHub OAuth is not configured.' })
+      return
+    }
+
+    const { sessionId } = CONNECT_QUERY_SCHEMA.parse(request.query)
+    const state = crypto.randomUUID()
+    const redis = await getRedisClient()
+    await redis.setEx(
+      githubOAuthRedisKey(state),
+      600,
+      JSON.stringify({
+        userId: request.auth!.userId,
+        sessionId: sessionId || null,
+      })
+    )
+
+    const authorizeUrl = new URL('https://github.com/login/oauth/authorize')
+    authorizeUrl.searchParams.set('client_id', env.GITHUB_CLIENT_ID)
+    authorizeUrl.searchParams.set('scope', GITHUB_SCOPES)
+    authorizeUrl.searchParams.set('redirect_uri', env.GITHUB_REDIRECT_URI)
+    authorizeUrl.searchParams.set('state', state)
+
+    response.json({ authorizeUrl: authorizeUrl.toString(), state })
+  } catch (error) {
+    next(error)
+  }
+})
+
+oauthRouter.get('/github/callback', async (request, response, next) => {
+  try {
+    const { code, state, error } = CALLBACK_QUERY_SCHEMA.parse(request.query)
+
+    if (error || !code || !state) {
+      response.status(400).type('html').send(
+        renderOAuthCallbackHtml('GitHub', 'CHATBRIDGE_GITHUB_OAUTH_COMPLETE', {
+          ok: false,
+          state,
+          error: error || 'Missing OAuth code or state',
+        })
+      )
+      return
+    }
+
+    const redis = await getRedisClient()
+    const rawState = await redis.get(githubOAuthRedisKey(state))
+    await redis.del(githubOAuthRedisKey(state))
+
+    if (!rawState) {
+      response
+        .status(400)
+        .type('html')
+        .send(renderOAuthCallbackHtml('GitHub', 'CHATBRIDGE_GITHUB_OAUTH_COMPLETE', { ok: false, state, error: 'OAuth state expired' }))
+      return
+    }
+
+    const parsedState = z
+      .object({
+        userId: z.string().min(1),
+        sessionId: z.string().nullable(),
+      })
+      .parse(JSON.parse(rawState))
+
+    const tokenResponse = await exchangeGitHubAuthorizationCode(code)
+    if (!tokenResponse.access_token) {
+      throw new Error(tokenResponse.error_description || tokenResponse.error || 'GitHub OAuth did not return an access token')
+    }
+
+    await upsertGitHubToken(parsedState.userId, {
+      accessToken: tokenResponse.access_token,
+    })
+
+    response.type('html').send(renderOAuthCallbackHtml('GitHub', 'CHATBRIDGE_GITHUB_OAUTH_COMPLETE', { ok: true, state }))
+  } catch (error) {
+    next(error)
+  }
+})
+
+oauthRouter.delete('/github', requireAuth, async (request: AuthenticatedRequest, response, next) => {
+  try {
+    await disconnectGitHub(request.auth!.userId)
+    response.status(204).end()
+  } catch (error) {
+    next(error)
+  }
+})
 
 oauthRouter.get('/spotify/status', requireAuth, async (request: AuthenticatedRequest, response, next) => {
   try {
@@ -106,7 +218,7 @@ oauthRouter.get('/spotify/callback', async (request, response, next) => {
 
     if (error || !code || !state) {
       response.status(400).type('html').send(
-        renderOAuthCallbackHtml({
+        renderOAuthCallbackHtml('Spotify', 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE', {
           ok: false,
           state,
           error: error || 'Missing OAuth code or state',
@@ -120,7 +232,10 @@ oauthRouter.get('/spotify/callback', async (request, response, next) => {
     await redis.del(oauthRedisKey(state))
 
     if (!rawState) {
-      response.status(400).type('html').send(renderOAuthCallbackHtml({ ok: false, state, error: 'OAuth state expired' }))
+      response
+        .status(400)
+        .type('html')
+        .send(renderOAuthCallbackHtml('Spotify', 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE', { ok: false, state, error: 'OAuth state expired' }))
       return
     }
 
@@ -138,7 +253,7 @@ oauthRouter.get('/spotify/callback', async (request, response, next) => {
       expiresInSeconds: tokenResponse.expires_in,
     })
 
-    response.type('html').send(renderOAuthCallbackHtml({ ok: true, state }))
+    response.type('html').send(renderOAuthCallbackHtml('Spotify', 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE', { ok: true, state }))
   } catch (error) {
     next(error)
   }

@@ -1,6 +1,6 @@
 export type DeterministicAppPrompt =
   | { app: 'chess' }
-  | { app: 'spotify' }
+  | { app: 'github' }
   | { app: 'weather'; location: string }
 
 export function shouldLaunchChessApp(text: string) {
@@ -33,9 +33,9 @@ export function extractWeatherLocation(text: string) {
   return null
 }
 
-export function shouldLaunchSpotifyApp(text: string) {
+export function shouldLaunchGitHubApp(text: string) {
   const normalized = text.toLowerCase()
-  const hasSpotify = /\bspotify\b/.test(normalized)
+  const hasGitHub = /\bgithub\b/.test(normalized)
   const hasLaunchIntent =
     /\b(open|launch|start|connect|authorize|auth|use)\b/.test(normalized) ||
     /\blogin\b/.test(normalized) ||
@@ -43,9 +43,12 @@ export function shouldLaunchSpotifyApp(text: string) {
     /\blog me in(to)?\b/.test(normalized) ||
     /\bsign in\b/.test(normalized) ||
     /\bsign me in(to)?\b/.test(normalized) ||
-    /\bplaylist\b/.test(normalized)
+    /\bpull request\b/.test(normalized) ||
+    /\bprs?\b/.test(normalized) ||
+    /\bissues?\b/.test(normalized) ||
+    /\brepo\b/.test(normalized)
 
-  return hasSpotify && hasLaunchIntent
+  return hasGitHub && hasLaunchIntent
 }
 
 export function getDeterministicAppPrompt(text: string): DeterministicAppPrompt | null {
@@ -53,8 +56,8 @@ export function getDeterministicAppPrompt(text: string): DeterministicAppPrompt 
     return { app: 'chess' }
   }
 
-  if (shouldLaunchSpotifyApp(text)) {
-    return { app: 'spotify' }
+  if (shouldLaunchGitHubApp(text)) {
+    return { app: 'github' }
   }
 
   const location = extractWeatherLocation(text)

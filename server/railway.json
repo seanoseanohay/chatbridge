@@ -14,7 +14,8 @@
       "/server/db/**",
       "/server/routes/**",
       "/server/middleware/**",
-      "/server/spotify.ts"
+      "/server/spotify.ts",
+      "/server/github.ts"
     ]
   },
   "deploy": {

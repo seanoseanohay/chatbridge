@@ -7,6 +7,7 @@ import { sessionsRouter } from './routes/sessions'
 import { invocationsRouter } from './routes/invocations'
 import { oauthRouter } from './routes/oauth'
 import { spotifyRouter } from './routes/spotify'
+import { githubRouter } from './routes/github'
 import { weatherRouter } from './routes/weather'
 import { env } from './config'
 
@@ -45,6 +46,7 @@ export function createServerApp() {
   app.use('/api/sessions', sessionsRouter)
   app.use('/api/sessions/:id/invocations', invocationsRouter)
   app.use('/api/oauth', oauthRouter)
+  app.use('/api/github', githubRouter)
   app.use('/api/spotify', spotifyRouter)
   app.use('/api/weather', weatherRouter)
 

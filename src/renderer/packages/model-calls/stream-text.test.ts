@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractWeatherLocation, shouldLaunchChessApp, shouldLaunchSpotifyApp } from '../../../plugin-runtime/deterministic-prompts'
+import { extractWeatherLocation, shouldLaunchChessApp, shouldLaunchGitHubApp } from '../../../plugin-runtime/deterministic-prompts'
 import { summarizeWeatherToolResult } from './stream-text'
 
 describe('stream-text app routing helpers', () => {
@@ -10,15 +10,13 @@ describe('stream-text app routing helpers', () => {
     expect(shouldLaunchChessApp('what is the capital of France?')).toBe(false)
   })
 
-  it('detects common spotify launch phrases', () => {
-    expect(shouldLaunchSpotifyApp('open spotify')).toBe(true)
-    expect(shouldLaunchSpotifyApp('log in to spotify')).toBe(true)
-    expect(shouldLaunchSpotifyApp('log me into spotify')).toBe(true)
-    expect(shouldLaunchSpotifyApp('sign me into spotify')).toBe(true)
-    expect(shouldLaunchSpotifyApp('connect spotify')).toBe(true)
-    expect(shouldLaunchSpotifyApp('make me a spotify playlist')).toBe(true)
-    expect(shouldLaunchSpotifyApp('use spotify')).toBe(true)
-    expect(shouldLaunchSpotifyApp('tell me a joke')).toBe(false)
+  it('detects common github launch phrases', () => {
+    expect(shouldLaunchGitHubApp('open github')).toBe(true)
+    expect(shouldLaunchGitHubApp('log in to github')).toBe(true)
+    expect(shouldLaunchGitHubApp('connect github')).toBe(true)
+    expect(shouldLaunchGitHubApp('show github prs')).toBe(true)
+    expect(shouldLaunchGitHubApp('use github issues')).toBe(true)
+    expect(shouldLaunchGitHubApp('tell me a joke')).toBe(false)
   })
 
   it('extracts weather locations from common prompts', () => {

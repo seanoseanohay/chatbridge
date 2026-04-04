@@ -48,18 +48,34 @@ export default function AppFrame(props: AppFrameProps) {
   const [status, setStatus] = useState<FrameStatus>('loading')
   const [error, setError] = useState<string>()
   const [spotifyConnectLoading, setSpotifyConnectLoading] = useState(false)
+  const oauthConfig =
+    appId === 'spotify-v1'
+      ? {
+          label: 'Spotify',
+          connectPath: '/api/oauth/spotify/connect',
+          messageType: 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE',
+          failureLabel: 'Spotify connection failed',
+        }
+      : appId === 'github-v1'
+        ? {
+            label: 'GitHub',
+            connectPath: '/api/oauth/github/connect',
+            messageType: 'CHATBRIDGE_GITHUB_OAUTH_COMPLETE',
+            failureLabel: 'GitHub connection failed',
+          }
+        : null
 
   const logSpotify = useCallback(
     (message: string, details?: Record<string, unknown>) => {
-      if (appId !== 'spotify-v1') {
+      if (!oauthConfig) {
         return
       }
-      console.info('[plugin-runtime] spotify ' + message, {
+      console.info('[plugin-runtime] ' + oauthConfig.label.toLowerCase() + ' ' + message, {
         sessionId,
         ...(details || {}),
       })
     },
-    [appId, sessionId]
+    [oauthConfig, sessionId]
   )
 
   const originMatches = useMemo(() => {
@@ -185,13 +201,13 @@ export default function AppFrame(props: AppFrameProps) {
   }, [frameWindow, sendInit])
 
   useEffect(() => {
-    if (appId !== 'spotify-v1') {
+    if (!oauthConfig) {
       return
     }
 
-    const handleSpotifyOAuthMessage = (rawEvent: MessageEvent) => {
+    const handleOAuthMessage = (rawEvent: MessageEvent) => {
       const event = rawEvent.data
-      if (!event || typeof event !== 'object' || event.type !== 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE') {
+      if (!event || typeof event !== 'object' || event.type !== oauthConfig.messageType) {
         return
       }
 
@@ -206,14 +222,14 @@ export default function AppFrame(props: AppFrameProps) {
       }
 
       logSpotify('oauth:complete', { ok: false, error: event.error })
-      reportError(typeof event.error === 'string' ? event.error : 'Spotify connection failed')
+      reportError(typeof event.error === 'string' ? event.error : oauthConfig.failureLabel)
     }
 
-    window.addEventListener('message', handleSpotifyOAuthMessage)
+    window.addEventListener('message', handleOAuthMessage)
     return () => {
-      window.removeEventListener('message', handleSpotifyOAuthMessage)
+      window.removeEventListener('message', handleOAuthMessage)
     }
-  }, [appId, logSpotify, reportError, sendInit])
+  }, [logSpotify, oauthConfig, reportError, sendInit])
 
   useEffect(() => {
     return () => {
@@ -242,6 +258,9 @@ export default function AppFrame(props: AppFrameProps) {
   }, [logSpotify, sessionId])
 
   const handleSpotifyConnect = useCallback(async () => {
+    if (!oauthConfig) {
+      return
+    }
     const backendUrl = typeof initConfig?.backendUrl === 'string' ? initConfig.backendUrl : ''
     const authToken = typeof initConfig?.authToken === 'string' ? initConfig.authToken : ''
 
@@ -250,7 +269,7 @@ export default function AppFrame(props: AppFrameProps) {
         hasBackendUrl: Boolean(backendUrl),
         hasAuthToken: Boolean(authToken),
       })
-      reportError('Sign in to ChatBridge before connecting Spotify')
+      reportError(`Sign in to ChatBridge before connecting ${oauthConfig.label}`)
       return
     }
 
@@ -260,7 +279,7 @@ export default function AppFrame(props: AppFrameProps) {
     })
     try {
       const response = await fetch(
-        `${backendUrl.replace(/\/$/, '')}/api/oauth/spotify/connect?sessionId=${encodeURIComponent(sessionId)}`,
+        `${backendUrl.replace(/\/$/, '')}${oauthConfig.connectPath}?sessionId=${encodeURIComponent(sessionId)}`,
         {
           headers: {
             Accept: 'application/json',
@@ -276,12 +295,12 @@ export default function AppFrame(props: AppFrameProps) {
         payload,
       })
       if (!response.ok || !payload.authorizeUrl) {
-        throw new Error(payload.error || 'Failed to start Spotify connection')
+        throw new Error(payload.error || `Failed to start ${oauthConfig.label} connection`)
       }
 
-      const popup = window.open(payload.authorizeUrl, 'chatbridge-spotify-oauth', 'width=520,height=740')
+      const popup = window.open(payload.authorizeUrl, `chatbridge-${oauthConfig.label.toLowerCase()}-oauth`, 'width=520,height=740')
       if (!popup) {
-        throw new Error('Popup blocked. Allow popups, then try connecting Spotify again.')
+        throw new Error(`Popup blocked. Allow popups, then try connecting ${oauthConfig.label} again.`)
       }
     } catch (connectError) {
       setSpotifyConnectLoading(false)
@@ -290,7 +309,7 @@ export default function AppFrame(props: AppFrameProps) {
       })
       reportError(connectError instanceof Error ? connectError.message : String(connectError))
     }
-  }, [initConfig?.authToken, initConfig?.backendUrl, logSpotify, reportError, sessionId])
+  }, [initConfig?.authToken, initConfig?.backendUrl, logSpotify, oauthConfig, reportError, sessionId])
 
   return (
     <Stack gap="xs" className="rounded-2xl border border-solid border-chatbox-border-primary bg-chatbox-background-secondary p-3">
@@ -299,9 +318,9 @@ export default function AppFrame(props: AppFrameProps) {
           {appId}
         </Text>
         <div className="flex items-center gap-2">
-          {appId === 'spotify-v1' && status !== 'completed' && (
+          {oauthConfig && status !== 'completed' && (
             <Button size="xs" variant="light" loading={spotifyConnectLoading} onClick={() => void handleSpotifyConnect()}>
-              Connect Spotify
+              {`Connect ${oauthConfig.label}`}
             </Button>
           )}
           {status === 'completed' && (
