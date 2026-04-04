@@ -205,6 +205,57 @@ export default function AppFrame(props: AppFrameProps) {
     sendInit()
   }, [frameWindow, sendInit])
 
+  const handleSpotifyConnect = useCallback(async () => {
+    if (!oauthConfig) {
+      return
+    }
+    if (!backendUrl || !authToken) {
+      logSpotify('oauth:connect:blocked', {
+        hasBackendUrl: Boolean(backendUrl),
+        hasAuthToken: Boolean(authToken),
+      })
+      reportError(`Sign in to ChatBridge before connecting ${oauthConfig.label}`)
+      return
+    }
+
+    setSpotifyConnectLoading(true)
+    logSpotify('oauth:connect:start', {
+      backendUrl,
+    })
+    try {
+      const response = await fetch(
+        `${backendUrl.replace(/\/$/, '')}${oauthConfig.connectPath}?sessionId=${encodeURIComponent(sessionId)}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+        }
+      )
+
+      const payload = (await response.json()) as { authorizeUrl?: string; error?: string }
+      logSpotify('oauth:connect:response', {
+        ok: response.ok,
+        status: response.status,
+        payload,
+      })
+      if (!response.ok || !payload.authorizeUrl) {
+        throw new Error(payload.error || `Failed to start ${oauthConfig.label} connection`)
+      }
+
+      const popup = window.open(payload.authorizeUrl, `chatbridge-${oauthConfig.label.toLowerCase()}-oauth`, 'width=520,height=740')
+      if (!popup) {
+        throw new Error(`Popup blocked. Allow popups, then try connecting ${oauthConfig.label} again.`)
+      }
+    } catch (connectError) {
+      setSpotifyConnectLoading(false)
+      logSpotify('oauth:connect:error', {
+        error: connectError instanceof Error ? connectError.message : String(connectError),
+      })
+      reportError(connectError instanceof Error ? connectError.message : String(connectError))
+    }
+  }, [authToken, backendUrl, logSpotify, oauthConfig, reportError, sessionId])
+
   useEffect(() => {
     if (!oauthConfig) {
       return
@@ -270,57 +321,6 @@ export default function AppFrame(props: AppFrameProps) {
       hasContentWindow: Boolean(nextWindow),
     })
   }, [logSpotify, sessionId])
-
-  const handleSpotifyConnect = useCallback(async () => {
-    if (!oauthConfig) {
-      return
-    }
-    if (!backendUrl || !authToken) {
-      logSpotify('oauth:connect:blocked', {
-        hasBackendUrl: Boolean(backendUrl),
-        hasAuthToken: Boolean(authToken),
-      })
-      reportError(`Sign in to ChatBridge before connecting ${oauthConfig.label}`)
-      return
-    }
-
-    setSpotifyConnectLoading(true)
-    logSpotify('oauth:connect:start', {
-      backendUrl,
-    })
-    try {
-      const response = await fetch(
-        `${backendUrl.replace(/\/$/, '')}${oauthConfig.connectPath}?sessionId=${encodeURIComponent(sessionId)}`,
-        {
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${authToken}`,
-          },
-        }
-      )
-
-      const payload = (await response.json()) as { authorizeUrl?: string; error?: string }
-      logSpotify('oauth:connect:response', {
-        ok: response.ok,
-        status: response.status,
-        payload,
-      })
-      if (!response.ok || !payload.authorizeUrl) {
-        throw new Error(payload.error || `Failed to start ${oauthConfig.label} connection`)
-      }
-
-      const popup = window.open(payload.authorizeUrl, `chatbridge-${oauthConfig.label.toLowerCase()}-oauth`, 'width=520,height=740')
-      if (!popup) {
-        throw new Error(`Popup blocked. Allow popups, then try connecting ${oauthConfig.label} again.`)
-      }
-    } catch (connectError) {
-      setSpotifyConnectLoading(false)
-      logSpotify('oauth:connect:error', {
-        error: connectError instanceof Error ? connectError.message : String(connectError),
-      })
-      reportError(connectError instanceof Error ? connectError.message : String(connectError))
-    }
-  }, [authToken, backendUrl, logSpotify, oauthConfig, reportError, sessionId])
 
   return (
     <Stack gap="xs" className="rounded-2xl border border-solid border-chatbox-border-primary bg-chatbox-background-secondary p-3">
