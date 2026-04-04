@@ -18,6 +18,22 @@ type GeocodeResponse = {
   results?: GeocodeEntry[]
 }
 
+type NominatimEntry = {
+  lat: string
+  lon: string
+  name?: string
+  display_name?: string
+  address?: {
+    city?: string
+    town?: string
+    village?: string
+    hamlet?: string
+    state?: string
+    country?: string
+    country_code?: string
+  }
+}
+
 type ForecastResponse = {
   current?: {
     temperature_2m?: number
@@ -171,6 +187,30 @@ async function fetchJson<T>(url: string) {
   return (await response.json()) as T
 }
 
+async function fetchNominatimJson<T>(url: string) {
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'chatbridge-weather/1.0',
+    },
+  })
+  if (!response.ok) {
+    throw new Error(`Weather request failed with status ${response.status}`)
+  }
+  return (await response.json()) as T
+}
+
+function toFallbackPlace(entry: NominatimEntry): GeocodeEntry {
+  return {
+    name: entry.name || entry.address?.city || entry.address?.town || entry.address?.village || entry.address?.hamlet || 'Unknown location',
+    admin1: entry.address?.state,
+    country: entry.address?.country,
+    country_code: entry.address?.country_code?.toUpperCase(),
+    latitude: Number(entry.lat),
+    longitude: Number(entry.lon),
+  }
+}
+
 export const weatherRouter = Router()
 
 weatherRouter.get('/', async (request, response, next) => {
@@ -184,9 +224,17 @@ weatherRouter.get('/', async (request, response, next) => {
         '&count=10&language=en&format=json'
     )
 
-    const place = Array.isArray(geocode.results)
+    let place = Array.isArray(geocode.results)
       ? [...geocode.results].sort((left, right) => scorePlace(right, normalizedLocation) - scorePlace(left, normalizedLocation))[0]
       : null
+
+    if (!place) {
+      const fallbackResults = await fetchNominatimJson<NominatimEntry[]>(
+        'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=' + encodeURIComponent(normalizedLocation)
+      )
+      place = Array.isArray(fallbackResults) && fallbackResults.length ? toFallbackPlace(fallbackResults[0]) : null
+    }
+
     if (!place) {
       response.status(404).json({
         error: 'location_not_found',
