@@ -126,10 +126,6 @@ export function createSpotifyAppSrcDoc() {
         cursor: pointer;
         font-weight: 700;
       }
-      .button-primary {
-        color: #081109;
-        background: #1ed760;
-      }
       .button-secondary {
         color: #d9e5db;
         background: rgba(255,255,255,0.08);
@@ -229,50 +225,57 @@ export function createSpotifyAppSrcDoc() {
     </div>
 
     <script>
-      let sessionId = '';
-      let backendUrl = '';
-      let authToken = '';
-      let connected = false;
-      let lastKnownStatus = null;
+      var sessionId = '';
+      var backendUrl = '';
+      var authToken = '';
+      var connected = false;
+      var lastKnownStatus = null;
 
       function log(message, details) {
         console.info('[spotify-app] ' + message, details || {});
       }
 
-      const loadingEl = document.getElementById('loading');
-      const loadingCopyEl = document.getElementById('loading-copy');
-      const errorPanelEl = document.getElementById('error-panel');
-      const subtitleEl = document.getElementById('subtitle');
-      const badgeEl = document.getElementById('badge');
-      const authPanelEl = document.getElementById('auth-panel');
-      const authCopyEl = document.getElementById('auth-copy');
-      const emptyStateEl = document.getElementById('empty-state');
-      const playlistPanelEl = document.getElementById('playlist-panel');
-      const playlistTitleEl = document.getElementById('playlist-title');
-      const playlistMetaEl = document.getElementById('playlist-meta');
-      const playlistLinkEl = document.getElementById('playlist-link');
-      const tracksEl = document.getElementById('tracks');
-      const refreshButtonEl = document.getElementById('refresh-button');
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      var loadingEl = document.getElementById('loading');
+      var loadingCopyEl = document.getElementById('loading-copy');
+      var errorPanelEl = document.getElementById('error-panel');
+      var subtitleEl = document.getElementById('subtitle');
+      var badgeEl = document.getElementById('badge');
+      var authPanelEl = document.getElementById('auth-panel');
+      var authCopyEl = document.getElementById('auth-copy');
+      var emptyStateEl = document.getElementById('empty-state');
+      var playlistPanelEl = document.getElementById('playlist-panel');
+      var playlistTitleEl = document.getElementById('playlist-title');
+      var playlistMetaEl = document.getElementById('playlist-meta');
+      var playlistLinkEl = document.getElementById('playlist-link');
+      var tracksEl = document.getElementById('tracks');
+      var refreshButtonEl = document.getElementById('refresh-button');
 
       function post(type, payload) {
         if (!sessionId) {
           return;
         }
         log('post', { type: type, sessionId: sessionId, payload: payload });
-        window.parent.postMessage({ type, sessionId, ...payload }, '*');
+        window.parent.postMessage({ type: type, sessionId: sessionId, ...payload }, '*');
       }
 
       function authHeaders() {
-        return authToken
-          ? {
-              Accept: 'application/json',
-              Authorization: 'Bearer ' + authToken,
-              'Content-Type': 'application/json',
-            }
-          : {
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
-            };
+        var headers = {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        };
+        if (authToken) {
+          headers.Authorization = 'Bearer ' + authToken;
+        }
+        return headers;
       }
 
       function setBadge(text) {
@@ -322,23 +325,22 @@ export function createSpotifyAppSrcDoc() {
       }
 
       function renderPlaylist(result) {
+        var tracks = Array.isArray(result.tracks) ? result.tracks : [];
         playlistTitleEl.textContent = result.playlistName || 'Spotify Playlist';
-        playlistMetaEl.textContent = (Array.isArray(result.tracks) ? result.tracks.length : 0) + ' tracks added';
-        playlistLinkEl.href = result.playlistUrl;
+        playlistMetaEl.textContent = String(tracks.length) + ' tracks added';
+        playlistLinkEl.href = result.playlistUrl || '#';
         tracksEl.innerHTML = '';
 
-        const tracks = Array.isArray(result.tracks) ? result.tracks : [];
-        for (const track of tracks) {
-          const item = document.createElement('div');
+        for (var i = 0; i < tracks.length; i += 1) {
+          var track = tracks[i];
+          var item = document.createElement('div');
           item.className = 'track';
-          item.innerHTML =
-            '<div class="track-title">' + escapeHtml(track.name || 'Unknown track') + '</div>' +
-            '<div class="track-artist">' + escapeHtml(track.artist || 'Unknown artist') + '</div>' +
-            (track.url
-              ? '<a class="track-link" target="_blank" rel="noreferrer noopener" href="' +
-                escapeHtml(track.url) +
-                '">Open track</a>'
-              : '');
+          var html = '<div class="track-title">' + escapeHtml(track.name || 'Unknown track') + '</div>';
+          html += '<div class="track-artist">' + escapeHtml(track.artist || 'Unknown artist') + '</div>';
+          if (track.url) {
+            html += '<a class="track-link" target="_blank" rel="noreferrer noopener" href="' + escapeHtml(track.url) + '">Open track</a>';
+          }
+          item.innerHTML = html;
           tracksEl.appendChild(item);
         }
 
@@ -352,39 +354,31 @@ export function createSpotifyAppSrcDoc() {
         setBadge('Created');
       }
 
-      function escapeHtml(value) {
-        return String(value)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#39;');
-      }
-
       async function fetchJson(url, init) {
-        log('fetch:start', { url: url, method: init && init.method ? init.method : 'GET' });
-        const response = await fetch(url, {
+        var method = init && init.method ? init.method : 'GET';
+        log('fetch:start', { url: url, method: method });
+        var response = await fetch(url, {
           ...init,
           headers: {
             ...authHeaders(),
             ...(init && init.headers ? init.headers : {}),
           },
         });
-        let payload = null;
+        var payload = null;
         try {
           payload = await response.json();
-        } catch {}
+        } catch (error) {
+          payload = null;
+        }
         if (!response.ok) {
-          const message =
-            payload && typeof payload.error === 'string'
-              ? payload.error
-              : payload && typeof payload.message === 'string'
-                ? payload.message
-                : 'Spotify request failed with status ' + response.status;
-          const error = new Error(message);
-          error.payload = payload;
+          var message = 'Spotify request failed with status ' + response.status;
+          if (payload && typeof payload.error === 'string') {
+            message = payload.error;
+          } else if (payload && typeof payload.message === 'string') {
+            message = payload.message;
+          }
           log('fetch:error', { url: url, status: response.status, payload: payload, message: message });
-          throw error;
+          throw new Error(message);
         }
         log('fetch:success', { url: url, status: response.status, payload: payload });
         return payload;
@@ -401,46 +395,47 @@ export function createSpotifyAppSrcDoc() {
       }
 
       async function refreshStatus(seq, toolName) {
-        log('status:refresh:start', { seq: seq, toolName: toolName, backendUrl: backendUrl, hasAuthToken: Boolean(authToken) });
+        log('status:refresh:start', {
+          seq: seq,
+          toolName: toolName,
+          backendUrl: backendUrl,
+          hasAuthToken: Boolean(authToken),
+        });
         if (!backendUrl || !authToken) {
           connected = false;
           showConnectPanel('Sign in to ChatBridge first, then connect Spotify.');
           if (typeof seq === 'number' && toolName) {
-            post('APP_STATE_UPDATE', { seq, stateSummary: 'Spotify requires ChatBridge authentication.' });
+            post('APP_STATE_UPDATE', { seq: seq, stateSummary: 'Spotify requires ChatBridge authentication.' });
             post('APP_RESULT', {
-              seq,
-              toolName,
+              seq: seq,
+              toolName: toolName,
               result: { error: 'auth_required', message: 'Sign in to ChatBridge before using Spotify.' },
             });
           }
           return { connected: false, authRequired: true };
         }
 
-        const status = await fetchJson(backendUrl.replace(/\/$/, '') + '/api/oauth/spotify/status');
+        var status = await fetchJson(backendUrl.replace(/\/$/, '') + '/api/oauth/spotify/status');
         connected = Boolean(status && status.connected);
         log('status:refresh:result', { connected: connected, status: status });
+
         if (connected) {
           showReadyState();
         } else {
           showConnectPanel('Connect Spotify to create playlists from your prompts.');
         }
+
         if (typeof seq === 'number' && toolName) {
-          post('APP_STATE_UPDATE', { seq, stateSummary: statusSummary() });
+          post('APP_STATE_UPDATE', { seq: seq, stateSummary: statusSummary() });
           post('APP_RESULT', {
-            seq,
-            toolName,
+            seq: seq,
+            toolName: toolName,
             result: connected
-              ? {
-                  connected: true,
-                  expiresAt: status ? status.expiresAt || null : null,
-                }
-              : {
-                  error: 'auth_required',
-                  connected: false,
-                  message: 'Connect Spotify to continue.',
-                },
+              ? { connected: true, expiresAt: status && status.expiresAt ? status.expiresAt : null }
+              : { error: 'auth_required', connected: false, message: 'Connect Spotify to continue.' },
           });
         }
+
         return status;
       }
 
@@ -448,10 +443,10 @@ export function createSpotifyAppSrcDoc() {
         log('playlist:create:start', { prompt: prompt, trackCount: trackCount, seq: seq, connected: connected });
         if (!connected) {
           showConnectPanel('Connect Spotify before creating a playlist.');
-          post('APP_STATE_UPDATE', { seq, stateSummary: 'Spotify account not connected.' });
+          post('APP_STATE_UPDATE', { seq: seq, stateSummary: 'Spotify account not connected.' });
           post('APP_ERROR', { error: 'Spotify account not connected' });
           post('APP_RESULT', {
-            seq,
+            seq: seq,
             toolName: 'spotify_create_playlist',
             result: { error: 'auth_required', message: 'Connect Spotify to continue.' },
           });
@@ -462,7 +457,7 @@ export function createSpotifyAppSrcDoc() {
         subtitleEl.textContent = prompt;
 
         try {
-          const result = await fetchJson(backendUrl.replace(/\/$/, '') + '/api/spotify/playlists', {
+          var result = await fetchJson(backendUrl.replace(/\/$/, '') + '/api/spotify/playlists', {
             method: 'POST',
             body: JSON.stringify({
               prompt: prompt,
@@ -472,21 +467,10 @@ export function createSpotifyAppSrcDoc() {
           lastKnownStatus = result;
           log('playlist:create:result', { result: result });
           renderPlaylist(result);
-          const summary =
-            (result.playlistName || 'Spotify playlist') +
-            ' with ' +
-            (Array.isArray(result.tracks) ? result.tracks.length : 0) +
-            ' tracks.';
 
-          post('APP_STATE_UPDATE', {
-            seq,
-            stateSummary: summary,
-          });
-          post('APP_RESULT', {
-            seq,
-            toolName: 'spotify_create_playlist',
-            result: result,
-          });
+          var summary = (result.playlistName || 'Spotify playlist') + ' with ' + (Array.isArray(result.tracks) ? result.tracks.length : 0) + ' tracks.';
+          post('APP_STATE_UPDATE', { seq: seq, stateSummary: summary });
+          post('APP_RESULT', { seq: seq, toolName: 'spotify_create_playlist', result: result });
           post('APP_COMPLETE', {
             result: {
               summary: 'Created ' + summary,
@@ -494,12 +478,12 @@ export function createSpotifyAppSrcDoc() {
             },
           });
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
+          var message = error instanceof Error ? error.message : String(error);
           log('playlist:create:error', { message: message });
           showError(message);
           post('APP_ERROR', { error: message });
           post('APP_RESULT', {
-            seq,
+            seq: seq,
             toolName: 'spotify_create_playlist',
             result: { error: 'request_failed', message: message },
           });
@@ -511,7 +495,7 @@ export function createSpotifyAppSrcDoc() {
       });
 
       window.addEventListener('message', async function (rawEvent) {
-        const event = rawEvent.data;
+        var event = rawEvent.data;
         if (!event || typeof event !== 'object' || typeof event.type !== 'string') {
           return;
         }
@@ -519,15 +503,15 @@ export function createSpotifyAppSrcDoc() {
 
         if (event.type === 'INIT_APP') {
           sessionId = event.sessionId;
-          backendUrl = typeof event.config?.backendUrl === 'string' ? event.config.backendUrl : '';
-          authToken = typeof event.config?.authToken === 'string' ? event.config.authToken : '';
+          backendUrl = event.config && typeof event.config.backendUrl === 'string' ? event.config.backendUrl : '';
+          authToken = event.config && typeof event.config.authToken === 'string' ? event.config.authToken : '';
           post('APP_READY', {});
           try {
             await refreshStatus();
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            log('init:error', { message: message });
-            showError(message);
+            var initMessage = error instanceof Error ? error.message : String(error);
+            log('init:error', { message: initMessage });
+            showError(initMessage);
           }
           return;
         }
@@ -536,22 +520,22 @@ export function createSpotifyAppSrcDoc() {
           try {
             await refreshStatus(event.seq, 'spotify_open');
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            log('spotify_open:error', { message: message });
-            showError(message);
-            post('APP_ERROR', { error: message });
+            var openMessage = error instanceof Error ? error.message : String(error);
+            log('spotify_open:error', { message: openMessage });
+            showError(openMessage);
+            post('APP_ERROR', { error: openMessage });
             post('APP_RESULT', {
               seq: event.seq,
               toolName: 'spotify_open',
-              result: { error: 'request_failed', message: message },
+              result: { error: 'request_failed', message: openMessage },
             });
           }
           return;
         }
 
         if (event.type === 'INVOKE_TOOL' && event.toolName === 'spotify_create_playlist') {
-          const prompt = typeof event.params?.prompt === 'string' ? event.params.prompt.trim() : '';
-          const trackCount = typeof event.params?.trackCount === 'number' ? event.params.trackCount : undefined;
+          var prompt = event.params && typeof event.params.prompt === 'string' ? event.params.prompt.trim() : '';
+          var trackCount = event.params && typeof event.params.trackCount === 'number' ? event.params.trackCount : undefined;
           if (!prompt) {
             log('spotify_create_playlist:invalid-prompt', { seq: event.seq });
             showError('Playlist prompt is required.');
@@ -567,5 +551,5 @@ export function createSpotifyAppSrcDoc() {
       });
     </script>
   </body>
-</html>`;
+</html>`
 }

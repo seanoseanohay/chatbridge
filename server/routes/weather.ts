@@ -73,6 +73,96 @@ function toResolvedLocation(place: GeocodeEntry) {
   return [place.name, place.admin1, place.country || place.country_code].filter(Boolean).join(', ')
 }
 
+const US_STATE_ALIASES: Record<string, string> = {
+  al: 'alabama',
+  ak: 'alaska',
+  az: 'arizona',
+  ar: 'arkansas',
+  ca: 'california',
+  co: 'colorado',
+  ct: 'connecticut',
+  de: 'delaware',
+  fl: 'florida',
+  ga: 'georgia',
+  hi: 'hawaii',
+  id: 'idaho',
+  il: 'illinois',
+  in: 'indiana',
+  ia: 'iowa',
+  ks: 'kansas',
+  ky: 'kentucky',
+  la: 'louisiana',
+  me: 'maine',
+  md: 'maryland',
+  ma: 'massachusetts',
+  mi: 'michigan',
+  mn: 'minnesota',
+  ms: 'mississippi',
+  mo: 'missouri',
+  mt: 'montana',
+  ne: 'nebraska',
+  nv: 'nevada',
+  nh: 'new hampshire',
+  nj: 'new jersey',
+  nm: 'new mexico',
+  ny: 'new york',
+  nc: 'north carolina',
+  nd: 'north dakota',
+  oh: 'ohio',
+  ok: 'oklahoma',
+  or: 'oregon',
+  pa: 'pennsylvania',
+  ri: 'rhode island',
+  sc: 'south carolina',
+  sd: 'south dakota',
+  tn: 'tennessee',
+  tx: 'texas',
+  ut: 'utah',
+  vt: 'vermont',
+  va: 'virginia',
+  wa: 'washington',
+  wv: 'west virginia',
+  wi: 'wisconsin',
+  wy: 'wyoming',
+}
+
+function normalizeLocationQuery(location: string) {
+  const normalized = location.trim().replace(/\s+/g, ' ')
+  const match = normalized.match(/^(.+?)[,\s]+([A-Za-z]{2})$/)
+  if (!match) {
+    return normalized
+  }
+
+  const stateName = US_STATE_ALIASES[match[2].toLowerCase()]
+  if (!stateName) {
+    return normalized
+  }
+
+  return `${match[1]}, ${stateName}, United States`
+}
+
+function scorePlace(place: GeocodeEntry, location: string) {
+  const query = location.toLowerCase()
+  const normalizedName = place.name.toLowerCase()
+  const admin1 = (place.admin1 || '').toLowerCase()
+  const country = (place.country || place.country_code || '').toLowerCase()
+
+  let score = 0
+  if (normalizedName === query) {
+    score += 10
+  }
+  if (query.includes(normalizedName)) {
+    score += 5
+  }
+  if (query.includes(admin1)) {
+    score += 4
+  }
+  if (query.includes('united states') && (country === 'united states' || country === 'us')) {
+    score += 3
+  }
+  return score
+}
+
 async function fetchJson<T>(url: string) {
   const response = await fetch(url)
   if (!response.ok) {
@@ -86,14 +176,17 @@ export const weatherRouter = Router()
 weatherRouter.get('/', async (request, response, next) => {
   try {
     const { location } = WeatherQuerySchema.parse(request.query)
+    const normalizedLocation = normalizeLocationQuery(location)
 
     const geocode = await fetchJson<GeocodeResponse>(
       'https://geocoding-api.open-meteo.com/v1/search?name=' +
-        encodeURIComponent(location) +
-        '&count=1&language=en&format=json'
+        encodeURIComponent(normalizedLocation) +
+        '&count=10&language=en&format=json'
     )
 
-    const place = Array.isArray(geocode.results) ? geocode.results[0] : null
+    const place = Array.isArray(geocode.results)
+      ? [...geocode.results].sort((left, right) => scorePlace(right, normalizedLocation) - scorePlace(left, normalizedLocation))[0]
+      : null
     if (!place) {
       response.status(404).json({
         error: 'location_not_found',
