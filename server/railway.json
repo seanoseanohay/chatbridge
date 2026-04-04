@@ -2,16 +2,18 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "DOCKERFILE",
-    "dockerfilePath": "/Dockerfile",
+    "dockerfilePath": "/server/Dockerfile",
     "watchPatterns": [
-      "/Dockerfile",
-      "/index.ts",
-      "/config.ts",
-      "/registry.ts",
-      "/package.json",
-      "/cache/**",
-      "/db/**",
-      "/routes/**"
+      "/server/Dockerfile",
+      "/server/index.ts",
+      "/server/config.ts",
+      "/server/registry.ts",
+      "/server/package.json",
+      "/server/cache/**",
+      "/server/db/**",
+      "/server/routes/**",
+      "/server/middleware/**",
+      "/server/spotify.ts"
     ]
   },
   "deploy": {
