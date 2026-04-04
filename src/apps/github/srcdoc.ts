@@ -213,6 +213,27 @@ export function createGitHubAppSrcDoc() {
         return overview.repo.fullName + ' has ' + overview.pulls.length + ' open pull requests and ' + overview.issues.length + ' open issues.';
       }
 
+      function emitCachedOpenResult(seq, toolName) {
+        if (!lastOverview || typeof seq !== 'number' || !toolName) {
+          return false;
+        }
+
+        var summary = summaryFromOverview(lastOverview);
+        post('APP_STATE_UPDATE', { seq: seq, stateSummary: summary });
+        post('APP_RESULT', {
+          seq: seq,
+          toolName: toolName,
+          result: {
+            sessionId: sessionId,
+            connected: true,
+            repoFullName: lastOverview.repo.fullName,
+            pullCount: lastOverview.pulls.length,
+            issueCount: lastOverview.issues.length,
+          },
+        });
+        return true;
+      }
+
       function renderItems(container, items, emptyCopy, typeLabel) {
         container.innerHTML = '';
         if (!Array.isArray(items) || !items.length) {
@@ -361,8 +382,10 @@ export function createGitHubAppSrcDoc() {
           authToken = nextAuthToken;
           post('APP_READY', {});
 
-          if (initSignature === nextInitSignature && initialSyncPromise) {
-            await initialSyncPromise;
+          if (initSignature === nextInitSignature) {
+            if (initialSyncPromise) {
+              await initialSyncPromise;
+            }
             return;
           }
 
@@ -375,6 +398,9 @@ export function createGitHubAppSrcDoc() {
         }
 
         if (event.type === 'INVOKE_TOOL' && event.toolName === 'github_open') {
+          if (connected && emitCachedOpenResult(event.seq, 'github_open')) {
+            return;
+          }
           await sync(event.seq, 'github_open');
         }
       });
