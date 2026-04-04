@@ -48,6 +48,13 @@ export function createGitHubAppSrcDoc() {
       .item-title { font-size: 14px; font-weight: 700; }
       .item-meta { margin-top: 4px; font-size: 12px; color: #96adc7; }
       .empty { color: #96adc7; font-size: 14px; }
+      .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+      .breadcrumbs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: #96adc7; }
+      .crumb-button, .entry-button { border: 0; background: transparent; color: #8ec5ff; cursor: pointer; padding: 0; font: inherit; text-align: left; }
+      .entry-list { display: grid; gap: 8px; }
+      .entry-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,0.04); }
+      .entry-type { font-size: 11px; color: #89a5c4; text-transform: uppercase; letter-spacing: 0.14em; }
+      .file-preview { min-height: 180px; max-height: 320px; overflow: auto; padding: 14px; border-radius: 16px; background: rgba(7, 13, 22, 0.74); border: 1px solid rgba(145, 194, 255, 0.08); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; color: #d8e4f3; }
     </style>
   </head>
   <body>
@@ -91,6 +98,15 @@ export function createGitHubAppSrcDoc() {
           <div class="section-title">Open Issues</div>
           <div class="list" id="issue-list"></div>
         </div>
+        <div class="section">
+          <div class="toolbar">
+            <div class="section-title">Repository Browser</div>
+            <button class="button" id="root-button" type="button">Root</button>
+          </div>
+          <div class="breadcrumbs" id="breadcrumbs"></div>
+          <div class="entry-list" id="entry-list"></div>
+          <div class="file-preview" id="file-preview" hidden></div>
+        </div>
       </div>
     </div>
 
@@ -131,6 +147,11 @@ export function createGitHubAppSrcDoc() {
       var issueListEl = document.getElementById('issue-list');
       var connectButtonEl = document.getElementById('connect-button');
       var refreshButtonEl = document.getElementById('refresh-button');
+      var rootButtonEl = document.getElementById('root-button');
+      var breadcrumbsEl = document.getElementById('breadcrumbs');
+      var entryListEl = document.getElementById('entry-list');
+      var filePreviewEl = document.getElementById('file-preview');
+      var currentPath = '';
 
       function post(type, payload) {
         if (!sessionId) return;
@@ -268,6 +289,119 @@ export function createGitHubAppSrcDoc() {
         showContent();
       }
 
+      function renderBreadcrumbs(path) {
+        breadcrumbsEl.innerHTML = '';
+        var segments = path ? path.split('/') : [];
+        var built = [];
+
+        var root = document.createElement('button');
+        root.type = 'button';
+        root.className = 'crumb-button';
+        root.textContent = '/';
+        root.addEventListener('click', function () {
+          void browseRepo('');
+        });
+        breadcrumbsEl.appendChild(root);
+
+        for (var i = 0; i < segments.length; i += 1) {
+          built.push(segments[i]);
+          var sep = document.createElement('span');
+          sep.textContent = '/';
+          breadcrumbsEl.appendChild(sep);
+
+          var crumb = document.createElement('button');
+          crumb.type = 'button';
+          crumb.className = 'crumb-button';
+          crumb.textContent = segments[i];
+          crumb.addEventListener('click', (function (nextPath) {
+            return function () {
+              void browseRepo(nextPath);
+            };
+          })(built.join('/')));
+          breadcrumbsEl.appendChild(crumb);
+        }
+      }
+
+      function renderDirectory(entries) {
+        entryListEl.innerHTML = '';
+        filePreviewEl.hidden = true;
+        filePreviewEl.textContent = '';
+
+        if (!Array.isArray(entries) || !entries.length) {
+          entryListEl.innerHTML = '<div class="empty">This folder is empty.</div>';
+          return;
+        }
+
+        entries.sort(function (a, b) {
+          if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+
+        for (var i = 0; i < entries.length; i += 1) {
+          var entry = entries[i];
+          var row = document.createElement('div');
+          row.className = 'entry-row';
+
+          var labelWrap = document.createElement('div');
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'entry-button';
+          button.textContent = entry.name;
+          button.addEventListener('click', (function (nextEntry) {
+            return function () {
+              void browseRepo(nextEntry.path);
+            };
+          })(entry));
+
+          var meta = document.createElement('div');
+          meta.className = 'entry-type';
+          meta.textContent = entry.type === 'dir' ? 'Folder' : 'File';
+
+          labelWrap.appendChild(button);
+          labelWrap.appendChild(meta);
+          row.appendChild(labelWrap);
+
+          if (entry.url) {
+            var openLink = document.createElement('a');
+            openLink.href = entry.url;
+            openLink.target = '_blank';
+            openLink.rel = 'noreferrer noopener';
+            openLink.textContent = 'Open';
+            row.appendChild(openLink);
+          }
+
+          entryListEl.appendChild(row);
+        }
+      }
+
+      function renderFile(file) {
+        entryListEl.innerHTML = '';
+        filePreviewEl.hidden = false;
+        filePreviewEl.textContent = file.content || 'File preview unavailable.';
+      }
+
+      async function browseRepo(path) {
+        if (!backendUrl || !authToken) {
+          return;
+        }
+
+        currentPath = path || '';
+        renderBreadcrumbs(currentPath);
+        entryListEl.innerHTML = '<div class="empty">Loading repository contents...</div>';
+        filePreviewEl.hidden = true;
+        filePreviewEl.textContent = '';
+
+        var normalizedBackendUrl = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
+        var payload = await fetchJson(normalizedBackendUrl + '/api/github/contents?path=' + encodeURIComponent(currentPath));
+
+        if (payload.kind === 'file') {
+          renderFile(payload.file);
+          return;
+        }
+
+        renderDirectory(payload.entries || []);
+      }
+
       async function refreshStatus() {
         log('status:refresh:start', { backendUrl: backendUrl, hasAuthToken: Boolean(authToken) });
         if (!backendUrl || !authToken) {
@@ -305,6 +439,7 @@ export function createGitHubAppSrcDoc() {
         var normalizedBackendUrl = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
         var overview = await fetchJson(normalizedBackendUrl + '/api/github/overview');
         renderOverview(overview);
+        await browseRepo(currentPath);
 
         if (typeof seq === 'number' && toolName) {
           var summary = summaryFromOverview(overview);
@@ -360,6 +495,10 @@ export function createGitHubAppSrcDoc() {
 
       connectButtonEl.addEventListener('click', function () {
         requestOAuthConnect();
+      });
+
+      rootButtonEl.addEventListener('click', function () {
+        void browseRepo('');
       });
 
       refreshButtonEl.addEventListener('click', function () {

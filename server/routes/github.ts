@@ -36,6 +36,30 @@ type GitHubIssue = {
   pull_request?: object
 }
 
+type GitHubContentEntry = {
+  type: 'file' | 'dir'
+  name: string
+  path: string
+  html_url?: string | null
+  size?: number
+  sha?: string
+}
+
+type GitHubContentFile = {
+  type: 'file'
+  name: string
+  path: string
+  html_url?: string | null
+  size?: number
+  sha?: string
+  encoding?: string
+  content?: string
+}
+
+function getRepoPath() {
+  return `/repos/${encodeURIComponent(env.GITHUB_OWNER)}/${encodeURIComponent(env.GITHUB_REPO)}`
+}
+
 export const githubRouter = Router()
 
 githubRouter.use(requireAuth)
@@ -54,7 +78,7 @@ githubRouter.get('/overview', async (request: AuthenticatedRequest, response, ne
       return
     }
 
-    const repoPath = `/repos/${encodeURIComponent(env.GITHUB_OWNER)}/${encodeURIComponent(env.GITHUB_REPO)}`
+    const repoPath = getRepoPath()
 
     const [viewer, repo, pulls, issues] = await Promise.all([
       githubApiRequest<GitHubViewer>(userId, '/user'),
@@ -94,6 +118,67 @@ githubRouter.get('/overview', async (request: AuthenticatedRequest, response, ne
           url: issue.html_url,
           author: issue.user?.login || 'unknown',
         })),
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+githubRouter.get('/contents', async (request: AuthenticatedRequest, response, next) => {
+  try {
+    if (!env.GITHUB_OWNER || !env.GITHUB_REPO) {
+      response.status(503).json({ error: 'GitHub repository is not configured.' })
+      return
+    }
+
+    const userId = request.auth!.userId
+    const token = await getStoredGitHubToken(userId)
+    if (!token) {
+      response.status(401).json({ error: 'GitHub account is not connected' })
+      return
+    }
+
+    const rawPath = typeof request.query.path === 'string' ? request.query.path : ''
+    const normalizedPath = rawPath.replace(/^\/+|\/+$/g, '')
+    const apiPath = normalizedPath ? `${getRepoPath()}/contents/${normalizedPath}` : `${getRepoPath()}/contents`
+    const payload = await githubApiRequest<GitHubContentEntry[] | GitHubContentFile>(userId, apiPath)
+
+    if (Array.isArray(payload)) {
+      response.json({
+        kind: 'directory',
+        path: normalizedPath,
+        entries: payload.map((entry) => ({
+          type: entry.type,
+          name: entry.name,
+          path: entry.path,
+          url: entry.html_url || null,
+          size: entry.size || 0,
+          sha: entry.sha || null,
+        })),
+      })
+      return
+    }
+
+    const content =
+      payload.type === 'file' && payload.content
+        ? payload.encoding === 'base64'
+          ? Buffer.from(payload.content, 'base64').toString('utf8')
+          : payload.content
+        : ''
+
+    response.json({
+      kind: 'file',
+      path: normalizedPath,
+      file: {
+        type: payload.type,
+        name: payload.name,
+        path: payload.path,
+        url: payload.html_url || null,
+        size: payload.size || 0,
+        sha: payload.sha || null,
+        content: content.slice(0, 12000),
+        truncated: content.length > 12000,
+      },
     })
   } catch (error) {
     next(error)
