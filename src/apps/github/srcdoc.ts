@@ -69,8 +69,9 @@ export function createGitHubAppSrcDoc() {
       <div class="panel error" id="error-panel"></div>
 
       <div class="panel auth" id="auth-panel" hidden>
-        <div id="auth-copy">Use the Connect GitHub button in the app header to authorize your account.</div>
+        <div id="auth-copy">Connect GitHub to authorize your account.</div>
         <div class="actions">
+          <button class="button" id="connect-button" type="button">Connect GitHub</button>
           <button class="button" id="refresh-button" type="button">Refresh Status</button>
         </div>
       </div>
@@ -128,6 +129,7 @@ export function createGitHubAppSrcDoc() {
       var repoStatsEl = document.getElementById('repo-stats');
       var pullListEl = document.getElementById('pull-list');
       var issueListEl = document.getElementById('issue-list');
+      var connectButtonEl = document.getElementById('connect-button');
       var refreshButtonEl = document.getElementById('refresh-button');
 
       function post(type, payload) {
@@ -172,7 +174,7 @@ export function createGitHubAppSrcDoc() {
         errorPanelEl.textContent = '';
         authPanelEl.hidden = false;
         contentPanelEl.hidden = true;
-        authCopyEl.textContent = message || 'Use the Connect GitHub button in the app header to authorize your account.';
+        authCopyEl.textContent = message || 'Connect GitHub to authorize your account.';
         subtitleEl.textContent = 'Account not connected';
         setBadge('Connect');
       }
@@ -322,6 +324,22 @@ export function createGitHubAppSrcDoc() {
           }
         }
       }
+
+      function requestOAuthConnect() {
+        if (!sessionId) return;
+        log('oauth:request');
+        window.parent.postMessage(
+          {
+            type: 'CHATBRIDGE_GITHUB_OAUTH_REQUEST',
+            sessionId: sessionId,
+          },
+          '*'
+        );
+      }
+
+      connectButtonEl.addEventListener('click', function () {
+        requestOAuthConnect();
+      });
 
       refreshButtonEl.addEventListener('click', function () {
         void sync();

@@ -53,6 +53,7 @@ export default function AppFrame(props: AppFrameProps) {
       ? {
           label: 'Spotify',
           connectPath: '/api/oauth/spotify/connect',
+          requestMessageType: 'CHATBRIDGE_SPOTIFY_OAUTH_REQUEST',
           messageType: 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE',
           failureLabel: 'Spotify connection failed',
         }
@@ -60,6 +61,7 @@ export default function AppFrame(props: AppFrameProps) {
         ? {
             label: 'GitHub',
             connectPath: '/api/oauth/github/connect',
+            requestMessageType: 'CHATBRIDGE_GITHUB_OAUTH_REQUEST',
             messageType: 'CHATBRIDGE_GITHUB_OAUTH_COMPLETE',
             failureLabel: 'GitHub connection failed',
           }
@@ -210,7 +212,16 @@ export default function AppFrame(props: AppFrameProps) {
 
     const handleOAuthMessage = (rawEvent: MessageEvent) => {
       const event = rawEvent.data
-      if (!event || typeof event !== 'object' || event.type !== oauthConfig.messageType) {
+      if (!event || typeof event !== 'object') {
+        return
+      }
+
+      if (event.type === oauthConfig.requestMessageType) {
+        void handleSpotifyConnect()
+        return
+      }
+
+      if (event.type !== oauthConfig.messageType) {
         return
       }
 
@@ -232,7 +243,7 @@ export default function AppFrame(props: AppFrameProps) {
     return () => {
       window.removeEventListener('message', handleOAuthMessage)
     }
-  }, [logSpotify, oauthConfig, reportError, sendInit])
+  }, [handleSpotifyConnect, logSpotify, oauthConfig, reportError, sendInit])
 
   useEffect(() => {
     return () => {
@@ -318,7 +329,7 @@ export default function AppFrame(props: AppFrameProps) {
           {appId}
         </Text>
         <div className="flex items-center gap-2">
-          {oauthConfig && status !== 'completed' && (
+          {oauthConfig && oauthConfig.label !== 'GitHub' && status !== 'completed' && (
             <Button
               size="xs"
               variant="light"
