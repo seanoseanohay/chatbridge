@@ -250,7 +250,8 @@ export function createGitHubAppSrcDoc() {
           return { connected: false, authRequired: true };
         }
 
-        var status = await fetchJson(backendUrl.replace(/\/$/, '') + '/api/oauth/github/status');
+        var normalizedBackendUrl = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
+        var status = await fetchJson(normalizedBackendUrl + '/api/oauth/github/status');
         connected = Boolean(status && status.connected);
 
         if (connected) {
@@ -275,7 +276,8 @@ export function createGitHubAppSrcDoc() {
           return;
         }
 
-        var overview = await fetchJson(backendUrl.replace(/\/$/, '') + '/api/github/overview');
+        var normalizedBackendUrl = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
+        var overview = await fetchJson(normalizedBackendUrl + '/api/github/overview');
         renderOverview(overview);
 
         if (typeof seq === 'number' && toolName) {
