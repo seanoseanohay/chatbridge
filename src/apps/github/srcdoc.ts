@@ -10,6 +10,7 @@ export function createGitHubAppSrcDoc() {
         font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
       }
       * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
       body {
         margin: 0;
         min-height: 100vh;
@@ -98,6 +99,8 @@ export function createGitHubAppSrcDoc() {
       var authToken = '';
       var connected = false;
       var lastOverview = null;
+      var initSignature = '';
+      var initialSyncPromise = null;
 
       function log(message, details) {
         console.info('[github-app] ' + message, details || {});
@@ -330,11 +333,26 @@ export function createGitHubAppSrcDoc() {
         log('message:receive', { type: event.type, event: event });
 
         if (event.type === 'INIT_APP') {
-          sessionId = event.sessionId;
-          backendUrl = event.config && typeof event.config.backendUrl === 'string' ? event.config.backendUrl : '';
-          authToken = event.config && typeof event.config.authToken === 'string' ? event.config.authToken : '';
+          var nextSessionId = event.sessionId;
+          var nextBackendUrl = event.config && typeof event.config.backendUrl === 'string' ? event.config.backendUrl : '';
+          var nextAuthToken = event.config && typeof event.config.authToken === 'string' ? event.config.authToken : '';
+          var nextInitSignature = [nextSessionId, nextBackendUrl, nextAuthToken ? 'token' : 'no-token'].join('|');
+
+          sessionId = nextSessionId;
+          backendUrl = nextBackendUrl;
+          authToken = nextAuthToken;
           post('APP_READY', {});
-          await sync();
+
+          if (initSignature === nextInitSignature && initialSyncPromise) {
+            await initialSyncPromise;
+            return;
+          }
+
+          initSignature = nextInitSignature;
+          initialSyncPromise = sync().finally(function () {
+            initialSyncPromise = null;
+          });
+          await initialSyncPromise;
           return;
         }
 

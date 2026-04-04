@@ -10,6 +10,10 @@ const listeners = new Map<string, Set<AppListener>>()
 
 let messageHandlerInstalled = false
 
+function isTrustedSandboxedEvent(rawEvent: MessageEvent) {
+  return rawEvent.origin === 'null'
+}
+
 function installMessageHandler() {
   if (messageHandlerInstalled || typeof window === 'undefined') {
     return
@@ -48,7 +52,12 @@ function installMessageHandler() {
     }
 
     for (const listener of sessionListeners) {
-      if (listener.sourceWindow && rawEvent.source && listener.sourceWindow !== rawEvent.source) {
+      if (
+        listener.sourceWindow &&
+        rawEvent.source &&
+        listener.sourceWindow !== rawEvent.source &&
+        !isTrustedSandboxedEvent(rawEvent)
+      ) {
         continue
       }
       listener.handler(parsedEvent)

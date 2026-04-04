@@ -47,4 +47,26 @@ describe('plugin event bus', () => {
     expect(handler).not.toHaveBeenCalled()
     expect(warnSpy).toHaveBeenCalled()
   })
+
+  it('accepts sandboxed iframe events with origin null even when the source window proxy differs', () => {
+    const handler = vi.fn()
+    registerAppListener('session-1', handler, { sourceWindow: window })
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'APP_READY',
+          sessionId: 'session-1',
+        },
+        origin: 'null',
+        source: {} as MessageEventSource,
+      })
+    )
+
+    expect(handler).toHaveBeenCalledTimes(1)
+    expect(handler).toHaveBeenCalledWith({
+      type: 'APP_READY',
+      sessionId: 'session-1',
+    })
+  })
 })
