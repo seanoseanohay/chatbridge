@@ -68,8 +68,6 @@ export default function AppFrame(props: AppFrameProps) {
     }
     return getOrigin(src) === origin
   }, [origin, src, srcDoc])
-  const useLoadReady = Boolean(srcDoc)
-
   const buildInitEvent = useCallback(
     () => ({
       type: 'INIT_APP' as const,
@@ -110,13 +108,10 @@ export default function AppFrame(props: AppFrameProps) {
 
     try {
       logSpotify('frame:init:send', {
-        useLoadReady,
         originMatches,
       })
-      if (!useLoadReady) {
-        setStatus('loading')
-        setError(undefined)
-      }
+      setStatus('loading')
+      setError(undefined)
       initAckRef.current = false
       const initEvent = buildInitEvent()
       sendToApp(iframeRef.current, initEvent)
@@ -132,19 +127,13 @@ export default function AppFrame(props: AppFrameProps) {
           // Ignore transient iframe readiness races while the child app boots.
         }
       }, INIT_RETRY_MS)
-      if (useLoadReady) {
-        timeoutRef.current = window.setTimeout(() => {
-          clearReadyTimeout()
-        }, 2_000)
-        return
-      }
       timeoutRef.current = window.setTimeout(() => {
         reportError('App did not become ready within 10 seconds')
       }, FRAME_TIMEOUT_MS)
     } catch (initError) {
       reportError(initError instanceof Error ? initError.message : String(initError))
     }
-  }, [appId, buildInitEvent, clearReadyTimeout, logSpotify, originMatches, reportError, sessionId, useLoadReady])
+  }, [appId, buildInitEvent, clearReadyTimeout, logSpotify, originMatches, reportError, sessionId])
 
   useEffect(() => {
     if (!frameWindow) {
@@ -249,23 +238,8 @@ export default function AppFrame(props: AppFrameProps) {
     initAckRef.current = false
     logSpotify('frame:load', {
       hasContentWindow: Boolean(nextWindow),
-      useLoadReady,
     })
-    if (useLoadReady) {
-      try {
-        sendToApp(iframe, buildInitEvent())
-        initAckRef.current = true
-      } catch (error) {
-        reportError(error instanceof Error ? error.message : String(error))
-        return
-      }
-      clearReadyTimeout()
-      setStatus('ready')
-      setError(undefined)
-      markAppFrameStatus(sessionId, 'ready')
-      onReady?.()
-    }
-  }, [buildInitEvent, clearReadyTimeout, logSpotify, onReady, reportError, sessionId, useLoadReady])
+  }, [logSpotify, sessionId])
 
   const handleSpotifyConnect = useCallback(async () => {
     const backendUrl = typeof initConfig?.backendUrl === 'string' ? initConfig.backendUrl : ''
