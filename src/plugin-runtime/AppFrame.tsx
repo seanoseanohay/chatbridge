@@ -48,24 +48,29 @@ export default function AppFrame(props: AppFrameProps) {
   const [status, setStatus] = useState<FrameStatus>('loading')
   const [error, setError] = useState<string>()
   const [spotifyConnectLoading, setSpotifyConnectLoading] = useState(false)
-  const oauthConfig =
-    appId === 'spotify-v1'
-      ? {
-          label: 'Spotify',
-          connectPath: '/api/oauth/spotify/connect',
-          requestMessageType: 'CHATBRIDGE_SPOTIFY_OAUTH_REQUEST',
-          messageType: 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE',
-          failureLabel: 'Spotify connection failed',
-        }
-        : appId === 'github-v1'
-        ? {
-            label: 'GitHub',
-            connectPath: '/api/oauth/github/connect',
-            requestMessageType: 'CHATBRIDGE_GITHUB_OAUTH_REQUEST',
-            messageType: 'CHATBRIDGE_GITHUB_OAUTH_COMPLETE',
-            failureLabel: 'GitHub connection failed',
-          }
-        : null
+  const oauthConfig = useMemo(() => {
+    if (appId === 'spotify-v1') {
+      return {
+        label: 'Spotify',
+        connectPath: '/api/oauth/spotify/connect',
+        requestMessageType: 'CHATBRIDGE_SPOTIFY_OAUTH_REQUEST',
+        messageType: 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE',
+        failureLabel: 'Spotify connection failed',
+      }
+    }
+
+    if (appId === 'github-v1') {
+      return {
+        label: 'GitHub',
+        connectPath: '/api/oauth/github/connect',
+        requestMessageType: 'CHATBRIDGE_GITHUB_OAUTH_REQUEST',
+        messageType: 'CHATBRIDGE_GITHUB_OAUTH_COMPLETE',
+        failureLabel: 'GitHub connection failed',
+      }
+    }
+
+    return null
+  }, [appId])
   const backendUrl = typeof initConfig?.backendUrl === 'string' ? initConfig.backendUrl : ''
   const authToken = typeof initConfig?.authToken === 'string' ? initConfig.authToken : ''
   const canStartOAuth = Boolean(oauthConfig && backendUrl && authToken)
