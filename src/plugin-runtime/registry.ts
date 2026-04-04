@@ -157,9 +157,10 @@ export async function fetchRegistry(fetchImpl: typeof fetch = fetch): Promise<Re
     const message = error instanceof Error ? error.message : String(error)
     rebuildIndexes([])
     console.warn('[plugin-runtime] Failed to load app registry', error)
+    const fallbackApps = getRegistryCache()
     return {
-      apps: [],
-      status: 'unavailable',
+      apps: fallbackApps,
+      status: fallbackApps.length ? 'ready' : 'unavailable',
       error: message,
     }
   }

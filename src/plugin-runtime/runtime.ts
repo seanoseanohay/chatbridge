@@ -42,6 +42,20 @@ function logSpotify(message: string, details?: Record<string, unknown>) {
   console.info('[plugin-runtime] spotify ' + message, details || {})
 }
 
+function shouldFallbackToLocalRuntime(appId: string, error: unknown) {
+  if (!supportsLocalRuntime(appId) || !(error instanceof Error)) {
+    return false
+  }
+
+  return (
+    error.message === 'Plugin backend authentication required' ||
+    error.message.includes('Failed to fetch') ||
+    error.message.includes('Load failed') ||
+    error.message.includes('NetworkError') ||
+    error.message.includes('fetch')
+  )
+}
+
 function isLocalSessionId(sessionId: string) {
   return sessionId.startsWith('local-app-session-')
 }
@@ -441,12 +455,12 @@ async function ensureRuntimeSession(
         })
       }
     } catch (error) {
-      if (supportsLocalRuntime(appId) && error instanceof Error && error.message === 'Plugin backend authentication required') {
+      if (shouldFallbackToLocalRuntime(appId, error)) {
         session = createLocalAppSession(appId, conversationId)
         if (appId === 'spotify-v1') {
-          logSpotify('runtime:ensure:local-fallback-auth', {
+          logSpotify('runtime:ensure:local-fallback', {
             sessionId: session.id,
-            error: error.message,
+            error: error instanceof Error ? error.message : String(error),
           })
         }
       } else {

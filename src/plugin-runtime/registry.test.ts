@@ -68,8 +68,9 @@ describe('plugin registry', () => {
 
     const result = await fetchRegistry(fetchMock)
 
-    expect(result.status).toBe('unavailable')
+    expect(result.status).toBe('ready')
     expect(result.error).toContain('ECONNREFUSED')
+    expect(result.apps.length).toBeGreaterThan(0)
     expect(resolveToolToApp('chess_start')?.appId).toBe('chess-v1')
     expect(resolveToolToApp('weather_get')?.appId).toBe('weather-v1')
   })
