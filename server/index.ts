@@ -16,6 +16,7 @@ export function createServerApp() {
   const app = express()
 
   app.use((request, response, next) => {
+    response.header('X-ChatBridge-Service', 'backend')
     response.header('Access-Control-Allow-Origin', request.headers.origin || '*')
     response.header('Vary', 'Origin')
     response.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
