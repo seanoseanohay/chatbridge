@@ -372,7 +372,7 @@ export default function AppFrame(props: AppFrameProps) {
         </Alert>
       )}
 
-      {status === 'loading' && (
+      {status === 'loading' && appId !== 'github-v1' && (
         <div className="flex items-center gap-2 rounded-xl border border-dashed border-chatbox-border-primary px-3 py-2">
           <Loader size="sm" />
           <Text size="sm">Loading app...</Text>

@@ -9,6 +9,19 @@ type GitHubViewer = {
   html_url?: string
 }
 
+type GitHubUserRepo = {
+  full_name: string
+  name: string
+  owner?: { login?: string }
+  description?: string | null
+  html_url: string
+  open_issues_count?: number
+  stargazers_count?: number
+  forks_count?: number
+  default_branch?: string
+  private?: boolean
+}
+
 type GitHubRepo = {
   full_name: string
   description?: string | null
@@ -56,17 +69,66 @@ type GitHubContentFile = {
   content?: string
 }
 
-function getRepoPath() {
-  return `/repos/${encodeURIComponent(env.GITHUB_OWNER)}/${encodeURIComponent(env.GITHUB_REPO)}`
+function getDefaultRepoFullName() {
+  if (!env.GITHUB_OWNER || !env.GITHUB_REPO) {
+    return ''
+  }
+  return `${env.GITHUB_OWNER}/${env.GITHUB_REPO}`
+}
+
+function normalizeRepoFullName(value: string) {
+  return value.trim().replace(/^\/+|\/+$/g, '')
+}
+
+function getRepoPath(repoFullName: string) {
+  const [owner, repo] = normalizeRepoFullName(repoFullName).split('/')
+  if (!owner || !repo) {
+    throw new Error('GitHub repository is not configured.')
+  }
+  return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`
 }
 
 export const githubRouter = Router()
 
 githubRouter.use(requireAuth)
 
+githubRouter.get('/repos', async (request: AuthenticatedRequest, response, next) => {
+  try {
+    const userId = request.auth!.userId
+    const token = await getStoredGitHubToken(userId)
+    if (!token) {
+      response.status(401).json({ error: 'GitHub account is not connected' })
+      return
+    }
+
+    const repos = await githubApiRequest<GitHubUserRepo[]>(userId, '/user/repos?sort=updated&per_page=100')
+    const defaultRepo = getDefaultRepoFullName()
+
+    response.json({
+      repos: repos.map((repo) => ({
+        fullName: repo.full_name,
+        name: repo.name,
+        owner: repo.owner?.login || '',
+        description: repo.description || null,
+        url: repo.html_url,
+        private: Boolean(repo.private),
+        stars: repo.stargazers_count || 0,
+        forks: repo.forks_count || 0,
+        openIssuesCount: repo.open_issues_count || 0,
+        defaultBranch: repo.default_branch || 'main',
+        isDefault: defaultRepo ? repo.full_name.toLowerCase() === defaultRepo.toLowerCase() : false,
+      })),
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
 githubRouter.get('/overview', async (request: AuthenticatedRequest, response, next) => {
   try {
-    if (!env.GITHUB_OWNER || !env.GITHUB_REPO) {
+    const requestedRepo = typeof request.query.repo === 'string' ? normalizeRepoFullName(request.query.repo) : ''
+    const repoFullName = requestedRepo || getDefaultRepoFullName()
+    if (!repoFullName) {
       response.status(503).json({ error: 'GitHub repository is not configured.' })
       return
     }
@@ -78,7 +140,7 @@ githubRouter.get('/overview', async (request: AuthenticatedRequest, response, ne
       return
     }
 
-    const repoPath = getRepoPath()
+    const repoPath = getRepoPath(repoFullName)
 
     const [viewer, repo, pulls, issues] = await Promise.all([
       githubApiRequest<GitHubViewer>(userId, '/user'),
@@ -94,6 +156,7 @@ githubRouter.get('/overview', async (request: AuthenticatedRequest, response, ne
         profileUrl: viewer.html_url || null,
       },
       repo: {
+        selectedFullName: repoFullName,
         fullName: repo.full_name,
         description: repo.description || null,
         url: repo.html_url,
@@ -126,7 +189,9 @@ githubRouter.get('/overview', async (request: AuthenticatedRequest, response, ne
 
 githubRouter.get('/contents', async (request: AuthenticatedRequest, response, next) => {
   try {
-    if (!env.GITHUB_OWNER || !env.GITHUB_REPO) {
+    const requestedRepo = typeof request.query.repo === 'string' ? normalizeRepoFullName(request.query.repo) : ''
+    const repoFullName = requestedRepo || getDefaultRepoFullName()
+    if (!repoFullName) {
       response.status(503).json({ error: 'GitHub repository is not configured.' })
       return
     }
@@ -140,12 +205,15 @@ githubRouter.get('/contents', async (request: AuthenticatedRequest, response, ne
 
     const rawPath = typeof request.query.path === 'string' ? request.query.path : ''
     const normalizedPath = rawPath.replace(/^\/+|\/+$/g, '')
-    const apiPath = normalizedPath ? `${getRepoPath()}/contents/${normalizedPath}` : `${getRepoPath()}/contents`
+    const apiPath = normalizedPath
+      ? `${getRepoPath(repoFullName)}/contents/${normalizedPath}`
+      : `${getRepoPath(repoFullName)}/contents`
     const payload = await githubApiRequest<GitHubContentEntry[] | GitHubContentFile>(userId, apiPath)
 
     if (Array.isArray(payload)) {
       response.json({
         kind: 'directory',
+        repoFullName,
         path: normalizedPath,
         entries: payload.map((entry) => ({
           type: entry.type,
@@ -168,6 +236,7 @@ githubRouter.get('/contents', async (request: AuthenticatedRequest, response, ne
 
     response.json({
       kind: 'file',
+      repoFullName,
       path: normalizedPath,
       file: {
         type: payload.type,

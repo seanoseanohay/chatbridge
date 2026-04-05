@@ -49,12 +49,14 @@ export function createGitHubAppSrcDoc() {
       .item-meta { margin-top: 4px; font-size: 12px; color: #96adc7; }
       .empty { color: #96adc7; font-size: 14px; }
       .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+      .toolbar-group { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
       .breadcrumbs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: #96adc7; }
       .crumb-button, .entry-button { border: 0; background: transparent; color: #8ec5ff; cursor: pointer; padding: 0; font: inherit; text-align: left; }
       .entry-list { display: grid; gap: 8px; }
       .entry-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,0.04); }
       .entry-type { font-size: 11px; color: #89a5c4; text-transform: uppercase; letter-spacing: 0.14em; }
       .file-preview { min-height: 180px; max-height: 320px; overflow: auto; padding: 14px; border-radius: 16px; background: rgba(7, 13, 22, 0.74); border: 1px solid rgba(145, 194, 255, 0.08); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; color: #d8e4f3; }
+      .repo-select { min-width: 180px; max-width: 100%; border-radius: 999px; border: 1px solid rgba(145, 194, 255, 0.18); background: rgba(255,255,255,0.06); color: #dbeafe; padding: 10px 14px; }
     </style>
   </head>
   <body>
@@ -85,7 +87,12 @@ export function createGitHubAppSrcDoc() {
 
       <div class="panel content" id="content-panel" hidden>
         <div class="section">
-          <div class="section-title">Repository</div>
+          <div class="toolbar">
+            <div class="section-title">Repository</div>
+            <div class="toolbar-group">
+              <select class="repo-select" id="repo-select"></select>
+            </div>
+          </div>
           <div class="repo-name" id="repo-name"></div>
           <div class="repo-meta" id="repo-meta"></div>
           <div class="stats" id="repo-stats"></div>
@@ -147,11 +154,14 @@ export function createGitHubAppSrcDoc() {
       var issueListEl = document.getElementById('issue-list');
       var connectButtonEl = document.getElementById('connect-button');
       var refreshButtonEl = document.getElementById('refresh-button');
+      var repoSelectEl = document.getElementById('repo-select');
       var rootButtonEl = document.getElementById('root-button');
       var breadcrumbsEl = document.getElementById('breadcrumbs');
       var entryListEl = document.getElementById('entry-list');
       var filePreviewEl = document.getElementById('file-preview');
       var currentPath = '';
+      var selectedRepoFullName = '';
+      var availableRepos = [];
 
       function post(type, payload) {
         if (!sessionId) return;
@@ -208,6 +218,31 @@ export function createGitHubAppSrcDoc() {
         contentPanelEl.hidden = false;
         subtitleEl.textContent = 'Connected and ready';
         setBadge('Ready');
+      }
+
+      function renderRepoSelect() {
+        repoSelectEl.innerHTML = '';
+
+        if (!Array.isArray(availableRepos) || !availableRepos.length) {
+          var option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'No repositories';
+          repoSelectEl.appendChild(option);
+          repoSelectEl.disabled = true;
+          return;
+        }
+
+        repoSelectEl.disabled = false;
+        for (var i = 0; i < availableRepos.length; i += 1) {
+          var repo = availableRepos[i];
+          var option = document.createElement('option');
+          option.value = repo.fullName;
+          option.textContent = repo.fullName;
+          if (repo.fullName === selectedRepoFullName) {
+            option.selected = true;
+          }
+          repoSelectEl.appendChild(option);
+        }
       }
 
       async function fetchJson(url, init) {
@@ -275,6 +310,8 @@ export function createGitHubAppSrcDoc() {
 
       function renderOverview(overview) {
         lastOverview = overview;
+        selectedRepoFullName = overview.repo.selectedFullName || overview.repo.fullName;
+        renderRepoSelect();
         repoNameEl.textContent = overview.repo.fullName;
         repoMetaEl.innerHTML =
           escapeHtml(overview.repo.description || 'No description provided.') +
@@ -381,7 +418,7 @@ export function createGitHubAppSrcDoc() {
       }
 
       async function browseRepo(path) {
-        if (!backendUrl || !authToken) {
+        if (!backendUrl || !authToken || !selectedRepoFullName) {
           return;
         }
 
@@ -392,7 +429,13 @@ export function createGitHubAppSrcDoc() {
         filePreviewEl.textContent = '';
 
         var normalizedBackendUrl = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
-        var payload = await fetchJson(normalizedBackendUrl + '/api/github/contents?path=' + encodeURIComponent(currentPath));
+        var payload = await fetchJson(
+          normalizedBackendUrl +
+            '/api/github/contents?repo=' +
+            encodeURIComponent(selectedRepoFullName) +
+            '&path=' +
+            encodeURIComponent(currentPath)
+        );
 
         if (payload.kind === 'file') {
           renderFile(payload.file);
@@ -400,6 +443,37 @@ export function createGitHubAppSrcDoc() {
         }
 
         renderDirectory(payload.entries || []);
+      }
+
+      async function loadRepos() {
+        if (!backendUrl || !authToken) {
+          availableRepos = [];
+          renderRepoSelect();
+          return;
+        }
+
+        var normalizedBackendUrl = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
+        var payload = await fetchJson(normalizedBackendUrl + '/api/github/repos');
+        availableRepos = Array.isArray(payload.repos) ? payload.repos : [];
+
+        if (!selectedRepoFullName && availableRepos.length) {
+          var defaultRepo = availableRepos.find(function (repo) {
+            return repo.isDefault;
+          });
+          selectedRepoFullName = (defaultRepo || availableRepos[0]).fullName;
+        }
+
+        if (
+          selectedRepoFullName &&
+          !availableRepos.some(function (repo) {
+            return repo.fullName === selectedRepoFullName;
+          }) &&
+          availableRepos.length
+        ) {
+          selectedRepoFullName = availableRepos[0].fullName;
+        }
+
+        renderRepoSelect();
       }
 
       async function refreshStatus() {
@@ -436,8 +510,15 @@ export function createGitHubAppSrcDoc() {
           return;
         }
 
+        await loadRepos();
+        if (!selectedRepoFullName) {
+          throw new Error('No GitHub repositories available.');
+        }
+
         var normalizedBackendUrl = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
-        var overview = await fetchJson(normalizedBackendUrl + '/api/github/overview');
+        var overview = await fetchJson(
+          normalizedBackendUrl + '/api/github/overview?repo=' + encodeURIComponent(selectedRepoFullName)
+        );
         renderOverview(overview);
         await browseRepo(currentPath);
 
@@ -502,6 +583,12 @@ export function createGitHubAppSrcDoc() {
       });
 
       refreshButtonEl.addEventListener('click', function () {
+        void sync();
+      });
+
+      repoSelectEl.addEventListener('change', function () {
+        selectedRepoFullName = repoSelectEl.value;
+        currentPath = '';
         void sync();
       });
 
