@@ -3,6 +3,7 @@ import { tool, type ToolExecutionOptions, type ToolSet } from 'ai'
 import { z } from 'zod'
 import { createChessAppSrcDoc } from '../apps/chess/srcdoc'
 import { createGitHubAppSrcDoc } from '../apps/github/srcdoc'
+import { createSlackAppSrcDoc } from '../apps/slack/srcdoc'
 import { createSpotifyAppSrcDoc } from '../apps/spotify/srcdoc'
 import { createWeatherAppSrcDoc } from '../apps/weather/srcdoc'
 import { activeAppSessionAtom, pluginFramesAtom } from '../renderer/stores/atoms/uiAtoms'
@@ -62,7 +63,7 @@ function isLocalSessionId(sessionId: string) {
 }
 
 function supportsLocalRuntime(appId: string) {
-  return appId === 'chess-v1' || appId === 'weather-v1' || appId === 'spotify-v1' || appId === 'github-v1'
+  return appId === 'chess-v1' || appId === 'weather-v1' || appId === 'spotify-v1' || appId === 'github-v1' || appId === 'slack-v1'
 }
 
 function getAuthHeaders(): HeadersInit {
@@ -136,6 +137,13 @@ function getLocalAppSource(appId: string) {
       origin: 'null',
     }
   }
+  if (appId === 'slack-v1') {
+    return {
+      src: 'about:blank',
+      srcDoc: createSlackAppSrcDoc(),
+      origin: 'null',
+    }
+  }
   return {
     src: 'about:blank',
     srcDoc: '<!DOCTYPE html><html><body>App unavailable.</body></html>',
@@ -162,6 +170,12 @@ function getLocalRuntimeConfig(appId: string) {
     }
   }
   if (appId === 'github-v1') {
+    return {
+      backendUrl: getPluginBackendUrl(),
+      authToken: getPluginAuthToken(),
+    }
+  }
+  if (appId === 'slack-v1') {
     return {
       backendUrl: getPluginBackendUrl(),
       authToken: getPluginAuthToken(),
@@ -722,9 +736,11 @@ export async function invokePluginTool(
         ? await ensureRuntimeSession(options.appId, options.conversationId, options.toolCallId)
         : toolName === 'github_open'
           ? await ensureRuntimeSession(options.appId, options.conversationId, options.toolCallId)
-          : toolName === 'spotify_open' || toolName === 'spotify_create_playlist'
+          : toolName === 'slack_open'
             ? await ensureRuntimeSession(options.appId, options.conversationId, options.toolCallId)
-            : getRuntimeSessionByTool(toolName)
+            : toolName === 'spotify_open' || toolName === 'spotify_create_playlist'
+              ? await ensureRuntimeSession(options.appId, options.conversationId, options.toolCallId)
+              : getRuntimeSessionByTool(toolName)
 
   if (!runtimeSession) {
     throw new Error(`No active plugin session found for tool "${toolName}"`)

@@ -15,6 +15,9 @@ const EnvSchema = z.object({
   SPOTIFY_CLIENT_ID: z.string().default(''),
   SPOTIFY_CLIENT_SECRET: z.string().default(''),
   SPOTIFY_REDIRECT_URI: z.string().url().default('http://localhost:4302/api/oauth/spotify/callback'),
+  SLACK_CLIENT_ID: z.string().default(''),
+  SLACK_CLIENT_SECRET: z.string().default(''),
+  SLACK_REDIRECT_URI: z.string().url().default('http://localhost:4302/api/oauth/slack/callback'),
 })
 
 export const env = EnvSchema.parse(process.env)

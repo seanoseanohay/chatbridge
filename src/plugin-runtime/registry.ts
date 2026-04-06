@@ -107,6 +107,32 @@ const BUILTIN_ENTRIES: PluginRegistryEntry[] = [
       ],
     },
   }),
+  PluginRegistryEntrySchema.parse({
+    appId: 'slack-v1',
+    origin: 'https://apps.chatbridge.app/slack',
+    enabled: true,
+    manifest: {
+      id: 'slack-v1',
+      name: 'Slack',
+      version: '1.0.0',
+      origin: 'https://apps.chatbridge.app/slack',
+      requiresAuth: true,
+      authProvider: 'slack',
+      tools: [
+        {
+          name: 'slack_open',
+          description: 'Open Slack and summarize your workspace activity.',
+          parameters: { type: 'object', properties: {}, additionalProperties: false },
+          returns: {
+            type: 'object',
+            properties: { sessionId: { type: 'string' } },
+            required: ['sessionId'],
+            additionalProperties: false,
+          },
+        },
+      ],
+    },
+  }),
 ]
 
 type RegistryLoadStatus = 'ready' | 'unauthorized' | 'unavailable'

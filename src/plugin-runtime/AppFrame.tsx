@@ -69,6 +69,16 @@ export default function AppFrame(props: AppFrameProps) {
       }
     }
 
+    if (appId === 'slack-v1') {
+      return {
+        label: 'Slack',
+        connectPath: '/api/oauth/slack/connect',
+        requestMessageType: 'CHATBRIDGE_SLACK_OAUTH_REQUEST',
+        messageType: 'CHATBRIDGE_SLACK_OAUTH_COMPLETE',
+        failureLabel: 'Slack connection failed',
+      }
+    }
+
     return null
   }, [appId])
   const backendUrl = typeof initConfig?.backendUrl === 'string' ? initConfig.backendUrl : ''

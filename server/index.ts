@@ -10,6 +10,7 @@ import { oauthRouter } from './routes/oauth'
 import { spotifyRouter } from './routes/spotify'
 import { githubRouter } from './routes/github'
 import { weatherRouter } from './routes/weather'
+import { slackRouter } from './routes/slack'
 import { env } from './config'
 
 export function createServerApp() {
@@ -51,6 +52,7 @@ export function createServerApp() {
   app.use('/api/github', githubRouter)
   app.use('/api/spotify', spotifyRouter)
   app.use('/api/weather', weatherRouter)
+  app.use('/api/slack', slackRouter)
 
   app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
     console.error('server:error', error)

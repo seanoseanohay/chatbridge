@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getRedisClient } from '../cache/client'
 import { env } from '../config'
 import { disconnectGitHub, exchangeGitHubAuthorizationCode, getStoredGitHubToken, upsertGitHubToken } from '../github'
+import { disconnectSlack, exchangeSlackAuthorizationCode, getStoredSlackToken, upsertSlackToken } from '../slack'
 import { requireAuth, type AuthenticatedRequest } from '../middleware/auth'
 import { disconnectSpotify, exchangeSpotifyAuthorizationCode, getStoredSpotifyToken, refreshSpotifyAccessToken, upsertSpotifyToken } from '../spotify'
 
@@ -21,6 +22,8 @@ const GITHUB_OAUTH_REDIS_KEY_PREFIX = 'chatbridge:github:oauth'
 const GITHUB_SCOPES = ['read:user', 'repo'].join(' ')
 const OAUTH_REDIS_KEY_PREFIX = 'chatbridge:spotify:oauth'
 const SPOTIFY_SCOPES = ['playlist-modify-private', 'playlist-modify-public', 'user-read-private'].join(' ')
+const SLACK_OAUTH_REDIS_KEY_PREFIX = 'chatbridge:slack:oauth'
+const SLACK_SCOPES = ['channels:read', 'channels:history', 'groups:read', 'groups:history'].join(',')
 
 function oauthRedisKey(state: string) {
   return `${OAUTH_REDIS_KEY_PREFIX}:${state}`
@@ -30,9 +33,13 @@ function githubOAuthRedisKey(state: string) {
   return `${GITHUB_OAUTH_REDIS_KEY_PREFIX}:${state}`
 }
 
+function slackOAuthRedisKey(state: string) {
+  return `${SLACK_OAUTH_REDIS_KEY_PREFIX}:${state}`
+}
+
 function renderOAuthCallbackHtml(
-  provider: 'Spotify' | 'GitHub',
-  messageType: 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE' | 'CHATBRIDGE_GITHUB_OAUTH_COMPLETE',
+  provider: 'Spotify' | 'GitHub' | 'Slack',
+  messageType: 'CHATBRIDGE_SPOTIFY_OAUTH_COMPLETE' | 'CHATBRIDGE_GITHUB_OAUTH_COMPLETE' | 'CHATBRIDGE_SLACK_OAUTH_COMPLETE',
   payload: { ok: boolean; state?: string; error?: string }
 ) {
   const serialized = JSON.stringify({
@@ -283,6 +290,104 @@ oauthRouter.post('/spotify/refresh', requireAuth, async (request: AuthenticatedR
 oauthRouter.delete('/spotify', requireAuth, async (request: AuthenticatedRequest, response, next) => {
   try {
     await disconnectSpotify(request.auth!.userId)
+    response.status(204).end()
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Slack OAuth Routes
+
+oauthRouter.get('/slack/status', requireAuth, async (request: AuthenticatedRequest, response, next) => {
+  try {
+    const token = await getStoredSlackToken(request.auth!.userId)
+    response.json({
+      connected: Boolean(token),
+      teamName: token?.teamName || null,
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+oauthRouter.get('/slack/connect', requireAuth, async (request: AuthenticatedRequest, response, next) => {
+  try {
+    if (!env.SLACK_CLIENT_ID || !env.SLACK_CLIENT_SECRET) {
+      response.status(503).json({ error: 'Slack OAuth is not configured.' })
+      return
+    }
+
+    const { sessionId } = CONNECT_QUERY_SCHEMA.parse(request.query)
+    const state = crypto.randomUUID()
+    const redis = await getRedisClient()
+    await redis.setEx(
+      slackOAuthRedisKey(state),
+      600,
+      JSON.stringify({
+        userId: request.auth!.userId,
+        sessionId: sessionId || null,
+      })
+    )
+
+    const authorizeUrl = new URL('https://slack.com/oauth/v2/authorize')
+    authorizeUrl.searchParams.set('client_id', env.SLACK_CLIENT_ID)
+    authorizeUrl.searchParams.set('user_scope', SLACK_SCOPES)
+    authorizeUrl.searchParams.set('redirect_uri', env.SLACK_REDIRECT_URI)
+    authorizeUrl.searchParams.set('state', state)
+
+    response.json({ authorizeUrl: authorizeUrl.toString(), state })
+  } catch (error) {
+    next(error)
+  }
+})
+
+oauthRouter.get('/slack/callback', async (request, response, next) => {
+  try {
+    const { code, state, error } = CALLBACK_QUERY_SCHEMA.parse(request.query)
+
+    if (error || !code || !state) {
+      response.status(400).type('html').send(
+        renderOAuthCallbackHtml('Slack', 'CHATBRIDGE_SLACK_OAUTH_COMPLETE', {
+          ok: false,
+          state,
+          error: error || 'Missing OAuth code or state',
+        })
+      )
+      return
+    }
+
+    const redis = await getRedisClient()
+    const rawState = await redis.get(slackOAuthRedisKey(state))
+    await redis.del(slackOAuthRedisKey(state))
+
+    if (!rawState) {
+      response
+        .status(400)
+        .type('html')
+        .send(renderOAuthCallbackHtml('Slack', 'CHATBRIDGE_SLACK_OAUTH_COMPLETE', { ok: false, state, error: 'OAuth state expired' }))
+      return
+    }
+
+    const parsedState = z
+      .object({
+        userId: z.string().min(1),
+        sessionId: z.string().nullable(),
+      })
+      .parse(JSON.parse(rawState))
+
+    const tokenResponse = await exchangeSlackAuthorizationCode(code)
+
+    await upsertSlackToken(parsedState.userId, tokenResponse)
+
+    response.type('html').send(renderOAuthCallbackHtml('Slack', 'CHATBRIDGE_SLACK_OAUTH_COMPLETE', { ok: true, state }))
+  } catch (error) {
+    next(error)
+  }
+})
+
+oauthRouter.delete('/slack', requireAuth, async (request: AuthenticatedRequest, response, next) => {
+  try {
+    await disconnectSlack(request.auth!.userId)
     response.status(204).end()
   } catch (error) {
     next(error)
