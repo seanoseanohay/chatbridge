@@ -5,19 +5,6 @@ const WeatherQuerySchema = z.object({
   location: z.string().min(1),
 })
 
-type GeocodeEntry = {
-  name: string
-  admin1?: string
-  country?: string
-  country_code?: string
-  latitude: number
-  longitude: number
-}
-
-type GeocodeResponse = {
-  results?: GeocodeEntry[]
-}
-
 type NominatimEntry = {
   lat: string
   lon: string
@@ -34,59 +21,35 @@ type NominatimEntry = {
   }
 }
 
-type ForecastResponse = {
-  current?: {
-    temperature_2m?: number
-    apparent_temperature?: number
-    relative_humidity_2m?: number
-    wind_speed_10m?: number
-    weather_code?: number
-  }
-  daily?: {
-    time?: string[]
-    weather_code?: number[]
-    temperature_2m_max?: number[]
-    temperature_2m_min?: number[]
+type WeatherGovPointsResponse = {
+  properties?: {
+    forecast?: string
+    forecastHourly?: string
+    relativeLocation?: {
+      properties?: {
+        city?: string
+        state?: string
+      }
+    }
   }
 }
 
-function describeWeatherCode(code: number | undefined) {
-  const lookup: Record<number, string> = {
-    0: 'clear sky',
-    1: 'mainly clear',
-    2: 'partly cloudy',
-    3: 'overcast',
-    45: 'foggy',
-    48: 'depositing rime fog',
-    51: 'light drizzle',
-    53: 'drizzle',
-    55: 'dense drizzle',
-    56: 'light freezing drizzle',
-    57: 'freezing drizzle',
-    61: 'slight rain',
-    63: 'rain',
-    65: 'heavy rain',
-    66: 'light freezing rain',
-    67: 'freezing rain',
-    71: 'slight snow',
-    73: 'snow',
-    75: 'heavy snow',
-    77: 'snow grains',
-    80: 'rain showers',
-    81: 'heavy rain showers',
-    82: 'violent rain showers',
-    85: 'snow showers',
-    86: 'heavy snow showers',
-    95: 'thunderstorm',
-    96: 'thunderstorm with hail',
-    99: 'severe thunderstorm with hail',
+type WeatherGovForecastResponse = {
+  properties?: {
+    periods?: Array<{
+      name: string
+      isDaytime: boolean
+      temperature: number
+      temperatureUnit: string
+      windSpeed: string
+      windDirection: string
+      shortForecast: string
+    }>
   }
-
-  return lookup[code ?? -1] || 'unavailable'
 }
 
-function toResolvedLocation(place: GeocodeEntry) {
-  return [place.name, place.admin1, place.country || place.country_code].filter(Boolean).join(', ')
+function describeWeatherShortForecast(forecast: string | undefined) {
+  return forecast || 'unavailable'
 }
 
 const US_STATE_ALIASES: Record<string, string> = {
@@ -157,28 +120,6 @@ function normalizeLocationQuery(location: string) {
   return `${match[1]}, ${stateName}, United States`
 }
 
-function scorePlace(place: GeocodeEntry, location: string) {
-  const query = location.toLowerCase()
-  const normalizedName = place.name.toLowerCase()
-  const admin1 = (place.admin1 || '').toLowerCase()
-  const country = (place.country || place.country_code || '').toLowerCase()
-
-  let score = 0
-  if (normalizedName === query) {
-    score += 10
-  }
-  if (query.includes(normalizedName)) {
-    score += 5
-  }
-  if (query.includes(admin1)) {
-    score += 4
-  }
-  if (query.includes('united states') && (country === 'united states' || country === 'us')) {
-    score += 3
-  }
-  return score
-}
-
 async function fetchJson<T>(url: string) {
   const response = await fetch(url)
   if (!response.ok) {
@@ -200,15 +141,13 @@ async function fetchNominatimJson<T>(url: string) {
   return (await response.json()) as T
 }
 
-function toFallbackPlace(entry: NominatimEntry): GeocodeEntry {
-  return {
-    name: entry.name || entry.address?.city || entry.address?.town || entry.address?.village || entry.address?.hamlet || 'Unknown location',
-    admin1: entry.address?.state,
-    country: entry.address?.country,
-    country_code: entry.address?.country_code?.toUpperCase(),
-    latitude: Number(entry.lat),
-    longitude: Number(entry.lon),
-  }
+function formatLocationName(entry: NominatimEntry): string {
+  const city = entry.name || entry.address?.city || entry.address?.town || entry.address?.village || entry.address?.hamlet
+  const state = entry.address?.state
+  const country = entry.address?.country
+
+  const parts = [city, state, country].filter(Boolean)
+  return parts.join(', ') || 'Unknown location'
 }
 
 export const weatherRouter = Router()
@@ -218,24 +157,12 @@ weatherRouter.get('/', async (request, response, next) => {
     const { location } = WeatherQuerySchema.parse(request.query)
     const normalizedLocation = normalizeLocationQuery(location)
 
-    const geocode = await fetchJson<GeocodeResponse>(
-      'https://geocoding-api.open-meteo.com/v1/search?name=' +
-        encodeURIComponent(normalizedLocation) +
-        '&count=10&language=en&format=json'
+    // Geocode using Nominatim (OSM) to get lat/lon
+    const geocodeResults = await fetchNominatimJson<NominatimEntry[]>(
+      'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(normalizedLocation)
     )
 
-    let place = Array.isArray(geocode.results)
-      ? [...geocode.results].sort((left, right) => scorePlace(right, normalizedLocation) - scorePlace(left, normalizedLocation))[0]
-      : null
-
-    if (!place) {
-      const fallbackResults = await fetchNominatimJson<NominatimEntry[]>(
-        'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=' + encodeURIComponent(normalizedLocation)
-      )
-      place = Array.isArray(fallbackResults) && fallbackResults.length ? toFallbackPlace(fallbackResults[0]) : null
-    }
-
-    if (!place) {
+    if (!Array.isArray(geocodeResults) || !geocodeResults.length) {
       response.status(404).json({
         error: 'location_not_found',
         location,
@@ -244,17 +171,18 @@ weatherRouter.get('/', async (request, response, next) => {
       return
     }
 
-    const forecast = await fetchJson<ForecastResponse>(
-      'https://api.open-meteo.com/v1/forecast?latitude=' +
-        encodeURIComponent(place.latitude) +
-        '&longitude=' +
-        encodeURIComponent(place.longitude) +
-        '&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code' +
-        '&daily=weather_code,temperature_2m_max,temperature_2m_min' +
-        '&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=5'
+    const place = geocodeResults[0]
+    const lat = Number(place.lat)
+    const lon = Number(place.lon)
+    const locationName = formatLocationName(place)
+
+    // Get weather.gov grid point for this location
+    const pointsResponse = await fetchJson<WeatherGovPointsResponse>(
+      `https://api.weather.gov/points/${lat},${lon}`
     )
 
-    if (!forecast.current || !forecast.daily?.time?.length) {
+    const forecastUrl = pointsResponse.properties?.forecast
+    if (!forecastUrl) {
       response.status(502).json({
         error: 'forecast_unavailable',
         location,
@@ -263,24 +191,39 @@ weatherRouter.get('/', async (request, response, next) => {
       return
     }
 
-    const resolvedLocation = toResolvedLocation(place)
-    const dayNames = forecast.daily.time
-    const dailyCodes = forecast.daily.weather_code || []
-    const dailyHighs = forecast.daily.temperature_2m_max || []
-    const dailyLows = forecast.daily.temperature_2m_min || []
+    // Get the forecast from weather.gov
+    const forecastResponse = await fetchJson<WeatherGovForecastResponse>(forecastUrl)
+    const periods = forecastResponse.properties?.periods || []
+
+    if (!periods.length) {
+      response.status(502).json({
+        error: 'forecast_unavailable',
+        location,
+        message: `Forecast unavailable for ${location}`,
+      })
+      return
+    }
+
+    // Extract current conditions (first period) and daily forecast
+    const current = periods[0]
+    const currentTemp = current?.temperature || 0
+    const currentDescription = current?.shortForecast || 'unavailable'
+
+    // Get daily highs/lows from daytime periods
+    const dailyPeriods = periods.filter((p) => p.isDaytime).slice(0, 5)
 
     response.json({
-      location: resolvedLocation,
-      temperatureF: Math.round(forecast.current.temperature_2m || 0),
-      description: describeWeatherCode(forecast.current.weather_code),
-      feelsLikeF: Math.round(forecast.current.apparent_temperature || 0),
-      humidity: Math.round(forecast.current.relative_humidity_2m || 0),
-      windMph: Math.round(forecast.current.wind_speed_10m || 0),
-      forecast: dayNames.slice(0, 5).map((day, index) => ({
-        day: new Date(day).toLocaleDateString('en-US', { weekday: 'short' }),
-        temperatureF: Math.round(dailyHighs[index] || 0),
-        lowTemperatureF: Math.round(dailyLows[index] || 0),
-        description: describeWeatherCode(dailyCodes[index]),
+      location: locationName,
+      temperatureF: currentTemp,
+      description: currentDescription,
+      feelsLikeF: currentTemp,
+      humidity: 0,
+      windMph: 0,
+      forecast: dailyPeriods.map((period) => ({
+        day: period.name,
+        temperatureF: period.temperature,
+        lowTemperatureF: 0,
+        description: period.shortForecast,
       })),
     })
   } catch (error) {
