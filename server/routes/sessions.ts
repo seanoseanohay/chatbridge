@@ -10,6 +10,12 @@ const CreateSessionBodySchema = z.object({
   conversationId: z.string().min(1),
 })
 
+const LatestSessionQuerySchema = z.object({
+  appId: z.string().min(1),
+  conversationId: z.string().min(1),
+  status: z.enum(['active', 'complete', 'error']).optional(),
+})
+
 const UpdateSessionBodySchema = z.object({
   status: z.enum(['active', 'complete', 'error']).optional(),
   stateSummary: z.string().nullable().optional(),
@@ -45,6 +51,38 @@ function mapSession(row: AppSessionRow) {
 export const sessionsRouter = Router()
 
 sessionsRouter.use(requireAuth)
+
+sessionsRouter.get('/latest', async (request: AuthenticatedRequest, response, next) => {
+  try {
+    const queryParse = LatestSessionQuerySchema.safeParse(request.query)
+    if (!queryParse.success) {
+      response.status(400).json({ error: 'Invalid query parameters' })
+      return
+    }
+
+    const { appId, conversationId, status } = queryParse.data
+    const result = await query<AppSessionRow>(
+      `
+        select id, conversation_id, user_id, app_id, status, state_summary, result, created_at, updated_at
+        from app_sessions
+        where conversation_id = $1
+          and app_id = $2
+          and ($3::text is null or status = $3)
+          and ($4::uuid is null or user_id = $4)
+        order by updated_at desc
+        limit 1
+      `,
+      [conversationId, appId, status ?? null, request.auth?.userId ?? null]
+    )
+
+    const session = result.rows[0]
+    response.json({
+      session: session ? mapSession(session) : null,
+    })
+  } catch (error) {
+    next(error)
+  }
+})
 
 sessionsRouter.post('/', validateBody(CreateSessionBodySchema), async (request: AuthenticatedRequest, response, next) => {
   try {

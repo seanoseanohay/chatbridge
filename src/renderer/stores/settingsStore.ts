@@ -62,7 +62,7 @@ export const settingsStore = createStore<Settings & Action>()(
           },
           removeItem: async (name) => await storage.removeItem(name),
         })),
-        version: 2,
+        version: 4,
         partialize: (state) => {
           try {
             return SettingsSchema.parse(state)
@@ -89,6 +89,10 @@ export const settingsStore = createStore<Settings & Action>()(
                 settings.licenseActivationMethod = 'manual'
                 settings.memorizedManualLicenseKey = settings.licenseKey
               }
+            case 2:
+              // Migration from version 2 to 3
+            case 3:
+              // Migration from version 3 to 4
             default:
               break
           }

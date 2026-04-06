@@ -144,6 +144,12 @@ function getLocalAppSource(appId: string) {
 }
 
 function getLocalRuntimeConfig(appId: string) {
+  if (appId === 'chess-v1') {
+    return {
+      backendUrl: getPluginBackendUrl(),
+      authToken: getPluginAuthToken(),
+    }
+  }
   if (appId === 'weather-v1') {
     return {
       backendUrl: getPluginBackendUrl(),
@@ -395,6 +401,18 @@ async function createAppSession(appId: string, conversationId: string) {
   return AppSessionSchema.parse(payload.session)
 }
 
+async function getLatestAppSession(appId: string, conversationId: string) {
+  const search = new URLSearchParams({
+    appId,
+    conversationId,
+    status: 'active',
+  })
+  const payload = await requestJson<{ session: AppSession | null }>(`/api/sessions/latest?${search.toString()}`, {
+    method: 'GET',
+  })
+  return payload.session ? AppSessionSchema.parse(payload.session) : null
+}
+
 function createLocalAppSession(appId: string, conversationId: string): AppSession {
   return AppSessionSchema.parse({
     id: `local-app-session-${appId}-${Date.now()}`,
@@ -453,6 +471,7 @@ async function ensureRuntimeSession(
   }
 
   let session: AppSession
+  let existingRuntimeSession: RuntimeSession | null = null
   if (supportsLocalRuntime(appId) && !getPluginAuthToken()) {
     session = createLocalAppSession(appId, conversationId)
     if (appId === 'spotify-v1') {
@@ -462,7 +481,10 @@ async function ensureRuntimeSession(
     }
   } else {
     try {
-      session = await createAppSession(appId, conversationId)
+      const restorableApp = appId === 'chess-v1'
+      const latestSession = restorableApp ? await getLatestAppSession(appId, conversationId) : null
+      session = latestSession || (await createAppSession(appId, conversationId))
+      existingRuntimeSession = latestSession ? runtimeSessions.get(latestSession.id) || null : null
       if (appId === 'spotify-v1') {
         logSpotify('runtime:ensure:backend-session', {
           sessionId: session.id,
@@ -487,18 +509,39 @@ async function ensureRuntimeSession(
       }
     }
   }
+
   const frameSource = getLocalAppSource(appId)
-  const runtimeSession: RuntimeSession = {
-    session,
-    entry,
-    frameToolCallId: toolCallId,
-    nextSeq: 0,
-    lastSeq: -1,
-    pendingBySeq: new Map(),
+  const runtimeSession =
+    existingRuntimeSession ||
+    ({
+      session,
+      entry,
+      frameToolCallId: toolCallId,
+      nextSeq: 0,
+      lastSeq: -1,
+      pendingBySeq: new Map(),
+    } satisfies RuntimeSession)
+
+  if (!existingRuntimeSession) {
+    runtimeSession.unregister = registerAppListener(session.id, (event) => handleAppEvent(session.id, event))
+    runtimeSessions.set(session.id, runtimeSession)
+  } else {
+    removeFrameEntry(existingRuntimeSession.frameToolCallId)
+    runtimeSession.session = session
+    runtimeSession.entry = entry
+    runtimeSession.frameToolCallId = toolCallId
   }
 
-  runtimeSession.unregister = registerAppListener(session.id, (event) => handleAppEvent(session.id, event))
-  runtimeSessions.set(session.id, runtimeSession)
+  const restoredState =
+    appId === 'chess-v1' &&
+    session.result &&
+    typeof session.result === 'object' &&
+    session.result.data &&
+    typeof session.result.data === 'object' &&
+    'snapshot' in session.result.data
+      ? session.result.data.snapshot
+      : null
+
   setActiveSession({
     sessionId: session.id,
     appId,
@@ -521,6 +564,7 @@ async function ensureRuntimeSession(
       appId,
       conversationId,
       ...getLocalRuntimeConfig(appId),
+      ...(restoredState ? { restoredState } : {}),
       ...(initConfig || {}),
     },
   })
@@ -705,10 +749,18 @@ export async function invokePluginTool(
   }
 
   if (toolName === 'chess_start') {
+    const restored =
+      options.appId === 'chess-v1' &&
+      runtimeSession.session.result &&
+      typeof runtimeSession.session.result === 'object' &&
+      runtimeSession.session.result.data &&
+      typeof runtimeSession.session.result.data === 'object' &&
+      'snapshot' in runtimeSession.session.result.data
     const result = {
       sessionId: runtimeSession.session.id,
       accepted: true,
-      stateSummary: runtimeSession.session.stateSummary || 'Chess board initialized.',
+      restored,
+      stateSummary: runtimeSession.session.stateSummary || (restored ? 'Chess game restored.' : 'Chess board initialized.'),
     }
     void logInvocation(runtimeSession.session.id, toolName, params, result, 'success', 0)
     return result

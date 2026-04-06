@@ -241,13 +241,11 @@ function analyzeMessageAttachments(
     const contentMode: ContentMode = usePreview ? 'preview' : 'full'
     const cacheKey = getTokenCacheKey({ tokenizerType, contentMode })
 
-    if (isCurrentInput) {
-      totalTokens += attachment.tokenCountMap?.[cacheKey] ?? 0
-      continue
-    }
+    const cachedTokens = attachment.tokenCountMap?.[cacheKey] ?? 0
+    const isCacheValid = isCurrentInput ? cachedTokens > 0 : isAttachmentCacheValid(attachment, cacheKey)
 
-    if (isAttachmentCacheValid(attachment, cacheKey)) {
-      totalTokens += attachment.tokenCountMap?.[cacheKey] ?? 0
+    if (isCacheValid) {
+      totalTokens += cachedTokens
     } else {
       // Needs calculation
       tasks.push({

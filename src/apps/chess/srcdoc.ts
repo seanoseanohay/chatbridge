@@ -307,6 +307,8 @@ export function createChessAppSrcDoc() {
       let selectedSquare = null;
       let legalTargets = [];
       let manualSeq = 1000;
+      let backendUrl = '';
+      let authToken = '';
 
       const boardEl = document.getElementById('board');
       const statusEl = document.getElementById('status');
@@ -403,6 +405,79 @@ export function createChessAppSrcDoc() {
       function post(type, payload) {
         if (!activeSessionId) return;
         parent.postMessage({ type, sessionId: activeSessionId, ...payload }, '*');
+      }
+
+      function buildSnapshot() {
+        return {
+          fen: game.fen(),
+          pgn: game.pgn(),
+          history: game.history(),
+        };
+      }
+
+      function buildPersistedResult() {
+        return {
+          summary: summarizeBoard(),
+          data: {
+            snapshot: buildSnapshot(),
+          },
+        };
+      }
+
+      async function persistSessionState() {
+        if (!activeSessionId || !backendUrl || !authToken) {
+          return;
+        }
+
+        try {
+          await fetch(
+            (backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl) + '/api/sessions/' + encodeURIComponent(activeSessionId),
+            {
+              method: 'PATCH',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + authToken,
+              },
+              body: JSON.stringify({
+                status: game.isGameOver() ? 'complete' : 'active',
+                stateSummary: summarizeBoard(),
+                result: buildPersistedResult(),
+              }),
+            }
+          );
+        } catch (error) {
+          console.warn('[chess-app] persist:error', error);
+        }
+      }
+
+      function restoreFromSnapshot(snapshot) {
+        if (!snapshot || typeof snapshot !== 'object') {
+          return false;
+        }
+
+        const pgn = typeof snapshot.pgn === 'string' ? snapshot.pgn : '';
+        const fen = typeof snapshot.fen === 'string' ? snapshot.fen : '';
+        try {
+          const restored = new Chess();
+          if (pgn) {
+            restored.loadPgn(pgn);
+          } else if (fen) {
+            restored.load(fen);
+          } else {
+            return false;
+          }
+          game = restored;
+          resetSelection();
+          manualSeq = 1000 + game.history().length;
+          clearError();
+          setHint('Resumed your current game. Make a move on the board or type standard notation.');
+          render();
+          return true;
+        } catch (error) {
+          console.warn('[chess-app] restore:error', error);
+          return false;
+        }
       }
 
       function updateStatusText() {
@@ -503,6 +578,7 @@ export function createChessAppSrcDoc() {
           seq,
           stateSummary: summarizeBoard()
         });
+        void persistSessionState();
       }
 
       function maybePostComplete(seq) {
@@ -684,7 +760,18 @@ export function createChessAppSrcDoc() {
 
         if (event.type === 'INIT_APP') {
           activeSessionId = event.sessionId;
-          resetGame();
+          backendUrl = event.config && typeof event.config.backendUrl === 'string' ? event.config.backendUrl : '';
+          authToken = event.config && typeof event.config.authToken === 'string' ? event.config.authToken : '';
+          const restoredState =
+            event.config &&
+            typeof event.config === 'object' &&
+            event.config.restoredState &&
+            typeof event.config.restoredState === 'object'
+              ? event.config.restoredState
+              : null;
+          if (!restoreFromSnapshot(restoredState)) {
+            resetGame();
+          }
           post('APP_READY', {});
           postStateUpdate(0);
           return;
